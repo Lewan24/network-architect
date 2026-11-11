@@ -12,5 +12,12 @@ export type DeviceArtwork = {
 
 /** Shared by the canvas, library and dialog preview. Missing entries use built-in vectors. */
 export const deviceArtwork: Partial<Record<Kind, DeviceArtwork>> = {
+  firewall: {
+    src: '/devices/firewall.svg',
+    x: -48,
+    y: -72,
+    width: 96,
+    height: 96,
+  },
   // router: { src: '/devices/router.svg', x: -48, y: -75, width: 96, height: 100 },
 };
