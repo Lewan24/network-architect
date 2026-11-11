@@ -4,6 +4,10 @@ Lokalna aplikacja React + TypeScript do projektowania izometrycznych topologii s
 
 Dla dalszej rozbudowy: [mapa kodu i zasady pracy](docs/DEVELOPMENT.md) oraz [źródła ikon i podmiana grafik urządzeń](docs/DEVICE_ARTWORK.md).
 
+## Aplikacja demo do testów i sprawdzenia możliwości
+
+https://network-architect.lewanmordor.workers.dev
+
 ## Uruchomienie
 
 ```sh
