@@ -1,0 +1,21 @@
+# Netweave — interfejs roboczy
+
+Tryb Operate: canvas jest centralnym obszarem pracy. Kompaktowa biblioteka po lewej ma dwie kolumny miniatur oraz listę wspólnych VLAN-ów. Prawy panel szerokości 302 px (275 px na mniejszych ekranach) służy wyłącznie symulacji: formularz testu, aktualny stan pakietu, przeskoki, liczniki i rozwijana historia. Dolny monitor nie występuje. Edycja urządzeń i ich możliwości odbywa się w natywnych dialogach modalnych z zatwierdzaniem lub anulowaniem całej zmiany. Na wąskich ekranach biblioteka przechodzi w pojedynczą kolumnę, a symulacja w prawą nakładkę.
+
+Tokeny: tło `#f8f9fb`, powierzchnie `#ffffff`, tekst `#303947`, krawędzie `#e8ebf0`, akcent `#5c6acb`. Sieć lokalna ma kolor `#6b9e99`, serwery `#839bbf`, bezpieczeństwo `#d69a69`. Kolor wyniku zawsze uzupełnia tekst i ikona. Font: Segoe UI z systemowym fallbackiem sans-serif; adresy IP i czasy używają monospace. Brak zależności od zewnętrznych fontów.
+
+Urządzenia są wektorową geometrią izometryczną SVG. Wspólna podstawa rombu, kierunek światła, etykieta i adres IP. Połączenia i urządzenia mają powiększony niewidoczny obszar trafienia. Strefy są wyznaczane z urządzeń rzeczywiście przypisanych do VLAN-u i używają jego koloru. Pakiet animuje każdy przeskok z krótkim przetwarzaniem w węźle; połączenia i dziennik aktualizują się dopiero po jego dotarciu. Wynik końcowy jest ukryty do zakończenia animacji. Ruch losowy jest sekwencyjny.
+
+Adresy są oznaczone DHCP/STATIC; klient bez dzierżawy pokazuje oczekiwanie. Strefy VLAN mają wypełnienie 12%, wyraźną przerywaną krawędź i białą etykietę z nazwą, CIDR oraz stanem DHCP. Wspólny Router/firewall odpowiada typowej roli brzegu. Internet ma osobny adres nadawcy, a panel dla tego źródła wybiera wyłącznie publiczne cele WAN/NAT. ACL wybiera urządzenia i VLAN-y z list, a tryb własnego IP/CIDR pozostaje dostępny. Po udanym połączeniu narzędzie wraca do Select. Połączenia mają własny dialog access/trunk.
+
+Switche L2 zarządzalne, L2 niezarządzalne i L3 mają spójne bryły, odmienny kolor i opis roli. VM i drukarka mają własne geometrie. Hypervisor zachowuje bryłę serwera i etykietę platformy. Relacja host–VM jest rysowana przerywaną linią vNIC. Dialog urządzenia pokazuje tylko właściwe zakładki: ogólne, ACL, NAT, routing i goście. Default ACL rule jest widocznym wyborem permit any / deny any nad tabelą reguł. NAT i routing używają opisanych pól, bez ukrywania ich w wąskim panelu.
+
+Przyciski i pola używają małych promieni 5–8 px. Hierarchia wynika z grupowania, odstępów i subtelnych separatorów. Zmiany topologii i VLAN-ów obsługują cofanie. Kontrolki mają nazwy dostępności i stan fokusu; natywne dialogi zachowują fokus i obsługują Escape. Menu kontekstowe działa dla planszy, urządzenia i połączenia oraz obsługuje strzałki. Przy ograniczeniu ruchu pakiet aktualizuje pozycję skokowo.
+
+Współrzędne canvasu są wyrażone w pikselach CSS bez letterboxingu viewBox. Przesuwanie używa różnicy pozycji wskaźnika, zoom utrzymuje punkt pod kursorem, a ResizeObserver zachowuje środek widoku przy zmianie rozmiaru. Tryb symulacji dopasowuje sieć do mniejszego canvasu. Spacja, H lub środkowy przycisk umożliwiają przesuwanie również nad urządzeniami.
+
+Weryfikacja: build TypeScript/Vite i 148 testów symulacji, DHCP/relay/dzierżaw, ACL, routingu, NAT, usług, odpowiedzi, VM, DNS, Internetu, grup, Wi-Fi, izolacji gości, zegara animacji, historii projektu i własnych grafik. Kontrola interfejsu w przeglądarce pozostaje niepotwierdzona; host dostępu do przeglądarki jest niedostępny.
+
+Sekcje VLAN są interaktywnymi grupami: uchwyt nagłówka/tła, kursor grab, wyraźne zaznaczenie wszystkich członków i ruch całej grupy. DNS ma osobną zakładkę rekordów A; wybór resolverów pozostaje przy konfiguracji sieci/klienta. Pasek główny zawiera Resetuj i Przykład, a panel symulacji oferuje gotowe scenariusze laboratorium i podsumowanie rozwiązania DNS po zakończeniu jego animacji.
+
+„Przykład” otwiera listę projektów z nazwą i krótkim opisem; Escape i kliknięcie poza listą zamykają ją. Panel symulacji ma suwak tempa 0,5×–5× z widoczną aktualną wartością, działający również w trakcie animacji. Zmiana tempa zachowuje postęp pakietu oraz synchronizację dziennika.
