@@ -10,6 +10,7 @@ import {
 import { useState } from 'react';
 import { DeviceGlyph } from '../devices/DeviceGlyph';
 import { deviceCategories, kinds, type DeviceCategory } from '../devices/deviceCatalog';
+import { cableNames } from '../model/ports';
 import type { Kind, Network } from '../model/networkTypes';
 
 type Props = {
@@ -41,6 +42,7 @@ export function DeviceLibrary({
       <nav className="library-tabs" aria-label="Biblioteka">
         <button
           className={palette === 'devices' ? 'active' : ''}
+          aria-label="Urządzenia"
           title="Biblioteka urządzeń"
           onClick={() => setPalette('devices')}
         >
@@ -49,6 +51,7 @@ export function DeviceLibrary({
         </button>
         <button
           className={palette === 'layers' ? 'active' : ''}
+          aria-label="Obiekty"
           title="Lista obiektów"
           onClick={() => setPalette('layers')}
         >
@@ -127,12 +130,19 @@ export function DeviceLibrary({
         </>
       ) : (
         <div className="layer-list">
+          <h3>Urządzenia</h3>
           {net.devices.map((d) => (
             <button
               key={d.id}
               className={selected === d.id ? 'active' : ''}
               onClick={() => setSelected(d.id)}
               onDoubleClick={() => setEditing(d.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  setEditing(d.id);
+                }
+              }}
               title={`${d.name} · ${d.ip}`}
             >
               <i style={{ background: d.online ? kinds[d.kind].color : '#b6bdc9' }} />
@@ -143,6 +153,37 @@ export function DeviceLibrary({
             </button>
           ))}
           {!net.devices.length && <p>Brak urządzeń.</p>}
+          <h3>Połączenia</h3>
+          {net.links.map((l) => {
+            const a = net.devices.find((d) => d.id === l.a);
+            const b = net.devices.find((d) => d.id === l.b);
+            const name = l.label || `${a?.name || l.a} ↔ ${b?.name || l.b}`;
+            return (
+              <button
+                key={l.id}
+                className={selected === l.id ? 'active' : ''}
+                aria-label={`Połączenie: ${name}`}
+                title={`${name} · dwuklik lub Enter: porty i kabel`}
+                onClick={() => setSelected(l.id)}
+                onDoubleClick={() => setEditing(l.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setEditing(l.id);
+                  }
+                }}
+              >
+                <i style={{ background: '#a1adbf' }} />
+                <span>
+                  {name}
+                  <small>
+                    {cableNames[l.cable || 'cat6']} · {l.aPortId || '?'} ↔ {l.bPortId || '?'}
+                  </small>
+                </span>
+              </button>
+            );
+          })}
+          {!net.links.length && <p>Brak połączeń.</p>}
         </div>
       )}
       <div className="vlan-summary">

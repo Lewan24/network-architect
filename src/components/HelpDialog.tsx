@@ -23,14 +23,24 @@ export function HelpDialog({ close }: { close: () => void }) {
           </dd>
           <dt>Edycja i połączenia</dt>
           <dd>
-            Dwuklik, Enter lub menu kontekstowe otwiera dialog urządzenia. C łączy dwa wskazane
-            obiekty. Delete usuwa zaznaczenie. Ctrl+Z cofa zmianę.
+            Dwuklik, Enter lub menu kontekstowe otwiera dialog urządzenia. C rozpoczyna łączenie:
+            wybierz urządzenie, jego port, drugie urządzenie i port docelowy. Przycisk „Połącz
+            urządzenie” jest też dostępny po zaznaczeniu obiektu. Delete usuwa zaznaczenie. Ctrl+Z
+            cofa zmianę.
           </dd>
           <dt>VLAN-y i adresy</dt>
           <dd>
             Zdefiniuj podsieci przyciskiem „Sieci i VLAN-y”. W urządzeniu wybierz VLAN i adres
             automatyczny lub własny statyczny IP. Dwuklik obszaru otwiera edycję danej sieci. Brama
             jest rezerwowana; nie jest automatycznie tworzonym urządzeniem.
+          </dd>
+          <dt>Porty i interfejsy</dt>
+          <dd>
+            W urządzeniu otwórz „Porty i PoE” albo „Interfejsy IP”. Kliknij oznaczone gniazdo w
+            panelu, aby je edytować. Zielony oznacza aktywny link, szary wolny port lub brak linku,
+            czarny port wyłączony. Dwuklik kabla pozwala wybrać porty obu końców, native VLAN,
+            medium i długość. Przycisk „Diagnostyka” pokazuje problemy i otwiera właściwą
+            konfigurację.
           </dd>
           <dt>Reguły firewalla</dt>
           <dd>

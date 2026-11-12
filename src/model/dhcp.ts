@@ -1,4 +1,11 @@
 import {
+  connectedNextHop,
+  expandInterfaceClients,
+  restoreInterfaceClients,
+  routedInterface,
+} from './interfaces';
+import { materializeHardware, operationalNetwork, transferVlan } from './ports';
+import {
   hasAcl,
   bridgesVlan,
   hostInVlan,
@@ -6,7 +13,6 @@ import {
   isDhcpServer,
   isHypervisor,
   isRoutingDevice,
-  linkAllowsVlan,
   matchesAclAddress,
   numberIp,
   routeSubnet,
@@ -26,27 +32,47 @@ export function vlanInterface(network: Network, device: Device, vlan: number) {
   return (
     !vlan ||
     network.vlans.some((v) => v.id === vlan && v.gatewayDeviceId === device.id) ||
-    device.vlan === vlan
+    device.vlan === vlan ||
+    !!device.interfaces?.some((n) => n.enabled && n.vlan === vlan)
   );
 }
-export function layer2Path(network: Network, source: string, target: string, vlan: number) {
+export function layer2Path(
+  network: Network,
+  source: string,
+  target: string,
+  vlan: number,
+  sourcePortId?: string,
+) {
+  network = operationalNetwork(network);
   const byId = new Map(network.devices.map((d) => [d.id, d]));
   const links = topologyLinks(network);
-  const queue: string[][] = [[source]];
-  const seen = new Set([source]);
+  const adjacent = new Map<string, typeof links>();
+  for (const l of links) {
+    adjacent.set(l.a, [...(adjacent.get(l.a) || []), l]);
+    adjacent.set(l.b, [...(adjacent.get(l.b) || []), l]);
+  }
+  const queue = [{ path: [source], vlan }];
+  const seen = new Set([`${source}:${vlan}`]);
   while (queue.length) {
-    const path = queue.shift()!;
+    const { path, vlan: currentVlan } = queue.shift()!;
     const id = path.at(-1)!;
     const d = byId.get(id);
     if (!d?.online) continue;
-    if (id === target && vlanInterface(network, d, vlan)) return path;
-    if (id !== source && !bridgesVlan(d, vlan) && !isHypervisor(d)) continue;
-    for (const l of links) {
-      if (!linkAllowsVlan(l, vlan)) continue;
+    if (id === target && vlanInterface(network, d, currentVlan)) return path;
+    if (id !== source && !bridgesVlan(d, currentVlan) && !isHypervisor(d)) continue;
+    for (const l of adjacent.get(id) || []) {
+      if (
+        id === source &&
+        sourcePortId &&
+        !((l.a === id && l.aPortId === sourcePortId) || (l.b === id && l.bPortId === sourcePortId))
+      )
+        continue;
+      const sent = transferVlan(network, l, id, currentVlan);
+      if (sent.error) continue;
       const next = l.a === id ? l.b : l.b === id ? l.a : null;
-      if (next && !seen.has(next)) {
-        seen.add(next);
-        queue.push([...path, next]);
+      if (next && !seen.has(`${next}:${sent.vlan}`)) {
+        seen.add(`${next}:${sent.vlan}`);
+        queue.push({ path: [...path, next], vlan: sent.vlan });
       }
     }
   }
@@ -96,11 +122,14 @@ function relayPath(
     let neighbors = links.flatMap((l) => (l.a === id ? [l.b] : l.b === id ? [l.a] : []));
     if (isRoutingDevice(d) && d.routingMode === 'static') {
       const ip = ipNumber(destinationIp);
-      const connected = network.vlans.find(
-        (v) => (v.gatewayDeviceId === d.id || v.id === d.vlan) && hostInVlan(destinationIp, v),
-      );
+      const nic = routedInterface(d, destinationIp);
+      const connected = nic
+        ? { id: nic.vlan }
+        : network.vlans.find(
+            (v) => (v.gatewayDeviceId === d.id || v.id === d.vlan) && hostInVlan(destinationIp, v),
+          );
       if (connected) {
-        const local = layer2Path(network, d.id, to.id, connected.id);
+        const local = layer2Path(network, d.id, to.id, connected.id, nic?.portId);
         if (local) return [...path, ...local.slice(1)];
         continue;
       }
@@ -114,6 +143,16 @@ function relayPath(
             routeSubnet(b.destination).prefix - routeSubnet(a.destination).prefix ||
             a.metric - b.metric,
         )[0];
+      const nextDevice = route && network.devices.find((n) => n.id === route.nextHopId);
+      const hop = nextDevice && connectedNextHop(network, d, nextDevice);
+      if (hop && nextDevice?.online && !seen.has(nextDevice.id)) {
+        const local = layer2Path(network, d.id, nextDevice.id, hop.vlan, hop.portId);
+        if (local) {
+          seen.add(nextDevice.id);
+          queue.push([...path, ...local.slice(1)]);
+        }
+        continue;
+      }
       neighbors = route ? neighbors.filter((id) => id === route.nextHopId) : [];
     }
     for (const next of neighbors)
@@ -130,6 +169,8 @@ export type DhcpStatus = {
   path: string[];
 };
 export function discoverDhcp(network: Network, client: Device): DhcpStatus {
+  network = operationalNetwork(network);
+  client = network.devices.find((d) => d.id === client.id) || client;
   if (client.ipMode !== 'auto')
     return { state: 'static', message: 'Statyczny adres IPv4.', path: [] };
   if (!client.online) return { state: 'offline', message: 'Urządzenie jest wyłączone.', path: [] };
@@ -166,8 +207,10 @@ export function discoverDhcp(network: Network, client: Device): DhcpStatus {
   const first = layer2Path(network, client.id, relay.id, vlan.id);
   if (!first) return wait('Brak połączenia L2 do przekaźnika DHCP w VLAN-ie klienta.');
   if (!validIp(server.ip)) return wait('Serwer DHCP nie ma adresu IP.');
-  const forward = relayPath(network, relay, server, vlan.gateway, server.ip);
-  const reverse = relayPath(network, server, relay, server.ip, vlan.gateway);
+  const relayIp =
+    routedInterface(relay, vlan.gateway)?.ip || (relay.vlan === vlan.id ? relay.ip : vlan.gateway);
+  const forward = relayPath(network, relay, server, relayIp, server.ip);
+  const reverse = relayPath(network, server, relay, server.ip, relayIp);
   if (!forward || !reverse)
     return wait(
       'Relay DHCP: brak trasy lub zezwolenia UDP/67 w drodze do serwera albo z powrotem.',
@@ -179,12 +222,17 @@ export function discoverDhcp(network: Network, client: Device): DhcpStatus {
     path: [...first, ...forward.slice(1)],
   };
 }
-export function reconcileDhcp(network: Network, now = Date.now(), renewId?: string): Network {
+function reconcileClientNetwork(network: Network, now: number, renewId?: string): Network {
   const devices = network.devices.map((d) => ({ ...d }));
   const next = { ...network, devices };
+  const active = operationalNetwork(next);
+  const activeById = new Map(active.devices.map((d) => [d.id, d]));
   const reserved = new Set(
     devices.filter((d) => d.ipMode === 'static' && validIp(d.ip)).map((d) => ipNumber(d.ip)),
   );
+  for (const d of devices)
+    for (const n of d.interfaces || [])
+      if (n.ipMode === 'static' && validIp(n.ip)) reserved.add(ipNumber(n.ip));
   for (const v of network.vlans) reserved.add(ipNumber(v.gateway));
   const retained = new Set<string>();
   for (const d of devices.filter((d) => d.ipMode === 'auto')) {
@@ -210,7 +258,13 @@ export function reconcileDhcp(network: Network, now = Date.now(), renewId?: stri
       reserved.delete(ipNumber(lease!.ip));
       d.ip = lease!.ip;
     }
-    const discovery = discoverDhcp(next, d);
+    // Refresh lease/address data while reusing the physical snapshot for this reconciliation.
+    for (const raw of devices) {
+      const node = activeById.get(raw.id)!;
+      node.ip = raw.ip;
+      node.lease = raw.lease;
+    }
+    const discovery = discoverDhcp(active, activeById.get(d.id)!);
     const renewalDue =
       renewId === d.id ||
       renewId === '*' ||
@@ -256,6 +310,8 @@ export function reconcileDhcp(network: Network, now = Date.now(), renewId?: stri
       obtainedAt: now,
       expiresAt: now + (vlan.leaseMinutes || 120) * 60000,
       dnsServerIds: [...(vlan.dnsServerIds || [])],
+      prefix: subnet(vlan.cidr).prefix,
+      gateway: vlan.gatewayDeviceId ? vlan.gateway : '',
     };
   }
   return next;
@@ -276,4 +332,22 @@ export function dhcpStatus(network: Network, client: Device, now = Date.now()): 
       path: discovery.path,
     };
   return discovery;
+}
+
+export function reconcileDhcp(network: Network, now = Date.now(), renewId?: string): Network {
+  network = materializeHardware(network);
+  const expanded = expandInterfaceClients(network);
+  const renewed = reconcileClientNetwork(
+    expanded.network,
+    now,
+    expanded.bindings.size && renewId && renewId !== '*' ? undefined : renewId,
+  );
+  if (renewId && renewId !== '*' && expanded.bindings.size) {
+    // Explicit renewal applies to every adapter belonging to the selected physical host.
+    let next = renewed;
+    for (const [id, b] of expanded.bindings)
+      if (b.owner === renewId) next = reconcileClientNetwork(next, now, id);
+    return restoreInterfaceClients(network, next, expanded.bindings);
+  }
+  return restoreInterfaceClients(network, renewed, expanded.bindings);
 }

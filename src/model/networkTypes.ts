@@ -27,6 +27,39 @@ export type Rule = {
   ingress?: 'any' | 'wan' | 'lan';
 };
 
+export type Port = {
+  id: string;
+  name: string;
+  connector: 'rj45' | 'sfp' | 'sfp+' | 'wifi' | 'virtual';
+  enabled: boolean;
+  speeds: number[];
+  speedMbps?: number;
+  duplex?: 'auto' | 'full' | 'half';
+  mode: 'auto' | 'access' | 'trunk';
+  accessVlan?: number;
+  nativeVlan?: number;
+  tagNative?: boolean;
+  allowedVlans?: number[];
+  module?: '1g-sx' | '1g-lx' | '10g-sr' | '10g-lr';
+  poe?: 'off' | 'af' | 'at' | 'bt3' | 'bt4';
+};
+export type Cable =
+  'cat5e' | 'cat6' | 'cat6a' | 'om3' | 'om4' | 'os2' | 'dac' | 'wireless' | 'virtual';
+export type NetworkInterface = {
+  id: string;
+  name: string;
+  portId: string;
+  enabled: boolean;
+  vlan: number;
+  ip: string;
+  ipMode: 'auto' | 'static';
+  prefix: number;
+  gateway: string;
+  metric: number;
+  dnsServerIds?: string[];
+  lease?: DhcpLease;
+};
+
 export type Device = {
   id: string;
   kind: Kind;
@@ -38,6 +71,12 @@ export type Device = {
   y: number;
   online: boolean;
   rules: Rule[];
+  ports?: Port[];
+  /** Explicit host NICs. Primary legacy fields remain an alias for interfaces[0]. */
+  interfaces?: NetworkInterface[];
+  poeBudgetWatts?: number;
+  powerSource?: 'local' | 'poe';
+  powerWatts?: number;
   defaultAcl?: 'allow' | 'deny';
   routingMode?: 'automatic' | 'static';
   routes?: StaticRoute[];
@@ -73,6 +112,8 @@ export type DhcpLease = {
   obtainedAt: number;
   expiresAt: number;
   dnsServerIds?: string[];
+  prefix?: number;
+  gateway?: string;
 };
 
 export type Service = {
@@ -111,6 +152,11 @@ export type Link = {
   id: string;
   a: string;
   b: string;
+  aPortId?: string;
+  bPortId?: string;
+  cable?: Cable;
+  lengthMeters?: number;
+  label?: string;
   mode?: 'auto' | 'access' | 'trunk';
   accessVlan?: number;
   allowedVlans?: number[];
@@ -145,6 +191,8 @@ export type Probe = {
   protocol: Protocol;
   port: number;
   checkReply?: boolean;
+  sourceInterfaceId?: string;
+  destinationInterfaceId?: string;
 };
 
 export type Result = {
@@ -157,14 +205,20 @@ export type Result = {
     destinationIp: string;
     port: number;
   };
+  bottleneckMbps?: number;
+  sourceInterfaceId?: string;
+  destinationInterfaceId?: string;
   verdict?: 'allowed' | 'blocked' | 'closed' | 'unreachable';
   returnPath?: string[];
+  linkPath?: string[];
+  returnLinkPath?: string[];
   dns?: {
     name: string;
     address?: string;
     serverId?: string;
     ok: boolean;
     queryPath: string[];
+    queryLinkPath?: string[];
     querySteps: string[];
   };
 };

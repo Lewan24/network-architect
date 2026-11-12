@@ -1,6 +1,7 @@
+import { defaultPorts } from '../model/ports';
 import type { Point } from '../canvas/canvasGeometry';
 import { defaultServices, kinds } from '../devices/deviceCatalog';
-import { allocateIp, isHypervisor } from '../model/network';
+import { allocateIp, isHypervisor, ipNumber, numberIp, routeSubnet } from '../model/network';
 import type { Device, Kind, Network } from '../model/networkTypes';
 
 export function unusedStaticAddress(network: Network, prefix = '10.255.0'): string {
@@ -45,6 +46,7 @@ export function createNetworkDevice(network: Network, kind: Kind, point: Point):
     device.outboundNat = true;
   }
   if (kind === 'vm') device.hostId = network.devices.find(isHypervisor)?.id || '';
+  device.ports = defaultPorts(device);
   return device;
 }
 
@@ -67,17 +69,43 @@ export function createGuestDevice(network: Network, host: Device): Device {
 
 export function duplicateNetworkDevice(network: Network, device: Device): Device {
   let address = '';
-  if (device.kind !== 'switch-unmanaged' && device.ipMode !== 'auto') {
+  if (
+    !device.interfaces?.length &&
+    device.kind !== 'switch-unmanaged' &&
+    device.ipMode !== 'auto'
+  ) {
     address = device.vlan
       ? allocateIp(network, device.vlan)
       : unusedStaticAddress(network, device.ip.split('.').slice(0, 3).join('.'));
   }
+  const used = new Set(
+    network.devices
+      .flatMap((d) => [d.ip, d.wanIp || '', ...(d.interfaces || []).map((n) => n.ip)])
+      .filter(Boolean),
+  );
+  for (const v of network.vlans) used.add(v.gateway);
+  const interfaces = device.interfaces?.map((nic) => {
+    if (nic.ipMode === 'auto') return { ...structuredClone(nic), ip: '', lease: undefined };
+    const bounds = routeSubnet(`${nic.ip}/${nic.prefix}`);
+    const first = nic.prefix >= 31 ? bounds.start : bounds.start + 1;
+    const end = nic.prefix >= 31 ? bounds.end : bounds.end - 1;
+    for (let n = first; n <= end && n <= first + used.size + 1; n++) {
+      const ip = numberIp(n);
+      if (!used.has(ip) && ipNumber(ip) !== ipNumber(nic.gateway || '0.0.0.0')) {
+        used.add(ip);
+        return { ...structuredClone(nic), ip, lease: undefined };
+      }
+    }
+    throw Error(`Brak wolnego adresu dla kopiowanego interfejsu ${nic.name}.`);
+  });
   return {
     ...structuredClone(device),
     id: crypto.randomUUID(),
     name: `${device.name.slice(0, 32)} — kopia`,
     lease: undefined,
-    ip: address,
+    interfaces,
+    ip: interfaces?.[0].ip ?? address,
+    ipMode: interfaces?.[0].ipMode ?? device.ipMode,
     x: device.x + 90,
     y: device.y + 60,
   };

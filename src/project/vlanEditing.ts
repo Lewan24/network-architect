@@ -5,6 +5,18 @@ import type { Device, Network, Vlan } from '../model/networkTypes';
 export function vlanReferences(network: Network, id: number): string[] {
   const references: string[] = [];
   if (network.devices.some((d) => d.vlan === id)) references.push('urządzenia w tej sieci');
+  if (network.devices.some((d) => d.interfaces?.some((n) => n.vlan === id)))
+    references.push('interfejsy IP');
+  if (
+    network.devices.some((d) =>
+      d.ports?.some(
+        (p) =>
+          (p.mode === 'access' && (p.accessVlan || 1) === id) ||
+          (p.mode === 'trunk' && ((p.nativeVlan || 1) === id || p.allowedVlans?.includes(id))),
+      ),
+    )
+  )
+    references.push('konfiguracja portów');
   if (network.devices.some((d) => d.wifiVlan === id)) references.push('VLAN klientów Wi-Fi');
   if (network.devices.some((d) => d.allowedVlans?.includes(id))) references.push('VLAN-y switchy');
   if (

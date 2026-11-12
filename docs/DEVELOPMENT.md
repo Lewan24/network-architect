@@ -26,7 +26,7 @@ Projekt to aplikacja React + TypeScript działająca lokalnie w przeglądarce. M
 
 1. Dialog pracuje na kopii roboczej; anulowanie nie modyfikuje projektu.
 2. Zatwierdzenie trafia do `commit` w `App`, które przerywa trwającą symulację.
-3. `useProject.commit` uzupełnia domyślny Internet, przelicza DHCP, zapisuje migawkę historii i usuwa gałąź redo.
+3. `useProject.commit` uzupełnia domyślny Internet, przypisuje porty przez `prepareHardware`, przelicza DHCP, zapisuje migawkę historii i usuwa gałąź redo.
 4. Autosave zapisuje JSON po krótkiej przerwie. Samo okresowe odnowienie dzierżawy nie dodaje kroku cofania.
 5. Silnik symulacji liczy wynik modelu. Hook odtwarza go z animacją, pokazując wynik dopiero na końcu.
 
@@ -77,3 +77,26 @@ Dialog edycji jest otwierany po zamontowaniu nadrzędnego okna. Zdarzenia anulow
 `src/devices/deviceCatalog.ts` zawiera `deviceCategories` i wymagane pole `category` każdego rodzaju urządzenia. Dodanie nowego rodzaju do `Kind` wymaga przypisania go do kategorii; biblioteka grupuje wpisy automatycznie. Wyszukiwanie rozwija pasujące sekcje i obejmuje nazwę, opis i nazwę kategorii. Menu kontekstowe pustej planszy nie powiela biblioteki.
 
 [Audyt zachowania urządzeń](./DEVICE_BEHAVIOR_AUDIT.md) zawiera źródła techniczne, poprawki i jawne ograniczenia symulacji.
+
+## Porty, karty IP i diagnostyka
+
+Opis funkcji, źródła i macierz scenariuszy: [PORTS_AND_DIAGNOSTICS.md](./PORTS_AND_DIAGNOSTICS.md).
+
+- `model/ports.ts` oblicza fizyczny stan łączy i budżety PoE, przypisuje wolne porty oraz koduje/dekoduje VLAN w obu kierunkach. Nie buforuje mutowalnych obiektów projektu. Krótkotrwały `operationalNetwork` ma nieserializowany indeks portów i stan fizyczny używany podczas przejścia grafu.
+- `model/interfaces.ts` wybiera interfejs źródła/celu, rozwiązuje next-hop we wspólnym L2 i buduje tymczasowych klientów DHCP per NIC. Ich ID nie trafiają do zapisu, canvasu ani historii; wynik wraca do `Device.interfaces`. Pola `Device.ip/vlan/ipMode/lease` są zgodnymi wstecz aliasami pierwszej karty.
+- Publiczny `simulateNetwork` przelicza dzierżawy, wybiera karty i korzysta z aktywnej fizycznie topologii. Wewnętrzny silnik sprawdza routing, VLAN, ACL, usługi i odpowiedź. `Result.linkPath/returnLinkPath` oraz `traceLinkPath` zachowują konkretne kable, w tym przy łączach równoległych i etapach DNS.
+- `hardwareValidation.ts` kontroluje import i zapis. `diagnostics.ts` zwraca błędy/ostrzeżenia/informacje z celem nawigacji i zalecanym działaniem. Brak trasy dla konkretnego celu pozostaje też wynikiem próby, ponieważ sieć lokalna bez bramy nie musi być błędna.
+- Formularze `PortFields`, `PortsEditor`, `InterfacesEditor` oraz `LinkDialog` pracują na kopiach. LinkDialog zapisuje razem kabel i zmienione porty obu urządzeń. Diagnostyka otwiera właściwą konfigurację.
+- `belongsToVlan` uwzględnia dodatkowe karty przy kartach sieci, obrysach i przesuwaniu grup. Nie licz tylko `device.vlan`, jeśli kod ma obejmować hosty z wieloma interfejsami.
+
+Domyślne profile gniazd są konfigurowalne i nie deklarują zgodności z konkretnym producentem. Nie dopisuj portów przy wyczerpaniu profilu. Zmiany klasy PoE, prędkości albo granic modułów wymagają sprawdzenia dokumentacji i przypadków brzegowych w testach.
+
+## Test dostępności interfejsu
+
+Po instalacji zależności pobierz Chromium poleceniem `npx playwright install chromium`. `npm run test:ui` uruchamia osobny serwer Vite na porcie 4180 i testuje aplikację w izolowanym profilu przeglądarki. Nie korzysta z projektu zapisanego w przeglądarce użytkownika. Serwer i przeglądarka są zamykane po teście.
+
+Test obejmuje pasek narzędzi przy szerokościach 390, 768, 1024 i 1440 px, zakładki wszystkich 15 typów urządzeń, pola portów i IP, listę kabli, nawigację z diagnostyki, zapis i cofnięcie kabla oraz wybór kart i ślad pakietu w symulacji. Plik: `scripts/check-ui.mjs`. W razie błędu zapisuje zrzut `/tmp/netweave-ui-failure.png`.
+
+Po `npm run build` można sprawdzić także produkcyjny pakiet: `npm run test:ui -- --preview`. Zmienna `NETWEAVE_TEST_URL` pozwala wskazać już uruchomioną lokalną aplikację; wówczas skrypt nie uruchamia własnego serwera.
+
+`PortPanel` jest wspólny dla edycji urządzenia, kabla i obu kroków łączenia. `portConnections.ts` waliduje wybrane końce przed atomowym dodaniem kabla; nie rezerwuj portu po samym wyborze pierwszego urządzenia. `PortConnectionDialog` pokazuje zgodność profilu i zapisuje dopiero po zatwierdzeniu obu końców. Test UI sprawdza również kolory/oznaczenia gniazd, zajętość, jawne końce, anulowanie, DAC i przypisanie VM.

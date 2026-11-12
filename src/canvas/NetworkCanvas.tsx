@@ -1,3 +1,6 @@
+import { cableGeometry } from './linkGeometry';
+import { belongsToVlan, supportsInterfaces } from '../model/interfaces';
+import { cableNames, hardwareState } from '../model/ports';
 import { networkAreaPolygon } from './networkAreas';
 import {
   ArrowsOutSimple,
@@ -9,11 +12,11 @@ import {
   Plus,
   Trash,
 } from '@phosphor-icons/react';
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { DeviceGlyph } from '../devices/DeviceGlyph';
 import { fitCamera, toWorld, zoomAt, type Camera, type Point } from './canvasGeometry';
 import { kinds } from '../devices/deviceCatalog';
-import { hasWan, isHypervisor, topologyLinks, tracePath } from '../model/network';
+import { hasWan, isHypervisor, topologyLinks, tracePath, traceLinkPath } from '../model/network';
 import type { Kind, Network } from '../model/networkTypes';
 import {
   HOP_MS,
@@ -40,12 +43,16 @@ type Props = {
   selected: string | null;
   select: (id: string | null) => void;
   edit: (id: string) => void;
+  editPorts: (id: string) => void;
+  editInterfaces: (id: string) => void;
   move: (id: string, point: Point) => void;
   moveGroup: (vlanId: number, delta: Point) => void;
   add: (kind: Kind, point: Point) => void;
   remove: () => void;
   connect: (id: string) => void;
   connection: string | null;
+  connectionLabel?: string;
+  cancelConnection: () => void;
   tool: Tool;
   setTool: (tool: Tool) => void;
   grid: boolean;
@@ -54,14 +61,16 @@ type Props = {
   active?: TrafficLog;
   hop: number;
 };
-function Packet({ flight }: { flight: Flight }) {
+function Packet({ flight, network }: { flight: Flight; network: Network }) {
   const marker = useRef<SVGGElement>(null);
   useEffect(() => {
     let frame = 0;
+    const packetLinks = topologyLinks(network);
+    const physicalTrace = traceLinkPath(flight.result);
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const render = () => {
       const elapsed = flightElapsed(flight, performance.now());
-      const point = reduced
+      let point = reduced
         ? flight.route[
             Math.min(
               flight.route.length - 1,
@@ -69,12 +78,35 @@ function Packet({ flight }: { flight: Flight }) {
             )
           ]
         : flightFrame(elapsed, flight.route);
+      if (!reduced) {
+        const hop = Math.max(
+          0,
+          Math.min(flight.route.length - 2, Math.floor((elapsed - START_MS) / HOP_MS)),
+        );
+        const a = flight.route[hop],
+          b = flight.route[hop + 1];
+        if (a && b) {
+          const allLinks = packetLinks;
+          const link = allLinks.find((l) => l.id === physicalTrace[hop]);
+          const t =
+            Math.abs(b.x - a.x) > Math.abs(b.y - a.y)
+              ? (point.x - a.x) / (b.x - a.x || 1)
+              : (point.y - a.y) / (b.y - a.y || 1);
+          if (link)
+            point = cableGeometry(
+              link,
+              link.a === a.id ? a : b,
+              link.a === a.id ? b : a,
+              allLinks,
+            ).at(link.a === a.id ? t : 1 - t);
+        }
+      }
       marker.current?.setAttribute('transform', `translate(${point.x} ${point.y - 5})`);
       if (elapsed < flightDuration(flight.route.length)) frame = requestAnimationFrame(render);
     };
     render();
     return () => cancelAnimationFrame(frame);
-  }, [flight]);
+  }, [flight, network]);
   const first = flight.route[0];
   return (
     first && (
@@ -92,6 +124,8 @@ function Packet({ flight }: { flight: Flight }) {
   );
 }
 export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCanvas(p, ref) {
+  const allLinks = useMemo(() => topologyLinks(p.network), [p.network]);
+  const hw = useMemo(() => hardwareState(p.network), [p.network]);
   const host = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const firstFit = useRef(false);
@@ -323,7 +357,7 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
         <rect width="100%" height="100%" fill={p.grid ? 'url(#iso-grid)' : '#fafbfd'} />
         <g transform={`translate(${camera.x} ${camera.y}) scale(${camera.zoom})`}>
           {p.network.vlans.map((v) => {
-            const members = devices.filter((d) => d.vlan === v.id);
+            const members = devices.filter((d) => belongsToVlan(d, v.id));
             if (!members.length) return null;
             const polygon = networkAreaPolygon(members);
             const top = polygon.reduce((a, b) => (a.y < b.y || (a.y === b.y && a.x < b.x) ? a : b));
@@ -401,17 +435,33 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
               </g>
             );
           })}
-          {topologyLinks(p.network).map((l) => {
+          {allLinks.map((l) => {
             const a = devices.find((d) => d.id === l.a)!;
             const b = devices.find((d) => d.id === l.b)!;
-            const index = path.findIndex(
+            const physicalTrace = p.active ? traceLinkPath(p.active.result) : [];
+            const geometry = cableGeometry(l, a, b, allLinks);
+            const legacyIndex = path.findIndex(
               (id, i) => (id === l.a && path[i + 1] === l.b) || (id === l.b && path[i + 1] === l.a),
             );
+            const index = physicalTrace.length ? physicalTrace.indexOf(l.id) : legacyIndex;
             const visited = index >= 0 && index < reached;
+            const physical = hw.links.get(l.id);
+            const linkDown = physical && !physical.up;
+            const linkTitle = `${l.label || cableNames[l.cable || 'cat6']} · ${physical?.aPort?.name || l.aPortId || 'auto'} ↔ ${physical?.bPort?.name || l.bPortId || 'auto'} · ${physical?.speedMbps || 1000} Mb/s${l.lengthMeters !== undefined ? ` · ${l.lengthMeters} m` : ''}${physical?.errors.length ? ` · ${physical.errors.join(' ')}` : ''}`;
             return (
               <g
                 key={l.id}
                 className="network-link"
+                role="button"
+                tabIndex={0}
+                aria-label={`Edytuj połączenie: ${a.name} ↔ ${b.name}`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    p.edit(l.id);
+                  }
+                }}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   p.edit(l.id);
@@ -424,25 +474,47 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                   }
                 }}
               >
+                <title>{linkTitle}</title>
+                <path d={geometry.path} stroke="transparent" strokeWidth="18" fill="none" />
                 <path
-                  d={`M${a.x} ${a.y}L${b.x} ${b.y}`}
-                  stroke="transparent"
-                  strokeWidth="18"
-                  fill="none"
-                />
-                <path
-                  d={`M${a.x} ${a.y}L${b.x} ${b.y}`}
-                  stroke={p.selected === l.id ? '#6574ce' : visited ? '#7b89d5' : '#adb9c9'}
+                  d={geometry.path}
+                  stroke={
+                    linkDown
+                      ? '#cc7f72'
+                      : p.selected === l.id
+                        ? '#6574ce'
+                        : visited
+                          ? '#7b89d5'
+                          : '#adb9c9'
+                  }
                   strokeWidth={p.selected === l.id || visited ? 2.8 : 1.6}
                   strokeDasharray={
-                    l.id.startsWith('virtual:') ? '4 4' : !a.online || !b.online ? '5 5' : undefined
+                    l.id.startsWith('virtual:') || l.cable === 'wireless'
+                      ? '4 4'
+                      : linkDown || !a.online || !b.online
+                        ? '5 5'
+                        : undefined
                   }
                   fill="none"
                   pointerEvents="none"
                 />
+                {p.selected === l.id && (
+                  <text
+                    x={geometry.middle.x}
+                    y={geometry.middle.y - 9}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fill={linkDown ? '#b76e63' : '#637791'}
+                    pointerEvents="none"
+                  >
+                    {l.label ||
+                      `${physical?.aPort?.name || 'auto'} ↔ ${physical?.bPort?.name || 'auto'}`}{' '}
+                    · {physical?.speedMbps || 1000} Mb/s
+                  </text>
+                )}
                 <circle
-                  cx={(a.x + b.x) / 2}
-                  cy={(a.y + b.y) / 2}
+                  cx={geometry.middle.x}
+                  cy={geometry.middle.y}
                   r="2.5"
                   fill="white"
                   stroke={visited ? '#7b89d5' : '#adb9c9'}
@@ -490,7 +562,19 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                     if (p.tool === 'select') p.edit(d.id);
                   }}
                   onContextMenu={(e) => context(e, 'device', d.id)}
+                  onClick={(e) => {
+                    if (p.tool === 'connect' && !spaceRef.current) {
+                      e.stopPropagation();
+                      p.connect(d.id);
+                    }
+                  }}
                   onKeyDown={(e) => {
+                    if (p.tool === 'connect' && (e.key === 'Enter' || e.key === ' ')) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      p.connect(d.id);
+                      return;
+                    }
                     if (e.key === 'Enter') {
                       e.preventDefault();
                       e.stopPropagation();
@@ -510,7 +594,6 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                     e.stopPropagation();
                     p.select(d.id);
                     if (p.tool === 'connect') {
-                      p.connect(d.id);
                       return;
                     }
                     gesture.current = {
@@ -554,7 +637,7 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                       opacity=".65"
                     />
                   )}
-                  <g opacity={d.online ? 1 : 0.4}>
+                  <g opacity={d.online && hw.powered.get(d.id) !== false ? 1 : 0.4}>
                     <DeviceGlyph kind={d.kind} color={kinds[d.kind].color} />
                   </g>
                   <g transform="translate(0 44)" pointerEvents="none">
@@ -574,13 +657,19 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                       {addressLabel}
                     </text>
                     <text textAnchor="middle" y="35" className="device-role">
-                      {hasWan(d) && d.wanIp ? `WAN ${d.wanIp}` : caption}
+                      {hw.powerErrors.has(d.id)
+                        ? 'Brak zasilania PoE'
+                        : hasWan(d) && d.wanIp
+                          ? `WAN ${d.wanIp}`
+                          : d.interfaces && d.interfaces.length > 1
+                            ? `${d.interfaces.length} interfejsy IP`
+                            : caption}
                     </text>
                     <circle
                       cx={-addressLabel.length * 2.8 - 9}
                       cy="16"
                       r="2.5"
-                      fill={d.online ? '#69a48c' : '#b1b7c2'}
+                      fill={d.online && hw.powered.get(d.id) !== false ? '#69a48c' : '#b1b7c2'}
                     />
                   </g>
                   {isStop && (
@@ -592,7 +681,7 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                 </g>
               );
             })}
-          {p.flight && <Packet flight={p.flight} />}
+          {p.flight && <Packet flight={p.flight} network={p.network} />}
         </g>
       </svg>
       <div className="floating-tools">
@@ -622,7 +711,12 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
         </button>
       </div>
       {p.connection && (
-        <div className="canvas-instruction">Wybierz drugie urządzenie · Esc anuluje</div>
+        <div className="canvas-instruction connection-instruction">
+          <span>{p.connectionLabel} → wybierz drugie urządzenie i jego port</span>
+          <button onClick={p.cancelConnection} aria-label="Anuluj łączenie">
+            Anuluj
+          </button>
+        </div>
       )}
       {p.selected && (
         <div className="selection-actions">
@@ -634,6 +728,17 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
           <button onClick={() => p.edit(p.selected!)}>
             <GearSix /> Edytuj
           </button>
+          {p.network.devices.some((d) => d.id === p.selected) && (
+            <button onClick={() => p.connect(p.selected!)}>
+              <LinkSimple /> Połącz urządzenie
+            </button>
+          )}
+          {p.network.devices.some((d) => d.id === p.selected) && (
+            <button onClick={() => p.editPorts(p.selected!)}>Porty i PoE</button>
+          )}
+          {p.network.devices.some((d) => d.id === p.selected && supportsInterfaces(d)) && (
+            <button onClick={() => p.editInterfaces(p.selected!)}>Interfejsy IP</button>
+          )}
           {!p.selected.startsWith('zone:') && (
             <button onClick={p.remove} aria-label="Usuń zaznaczony obiekt">
               <Trash />

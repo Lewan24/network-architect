@@ -1,3 +1,12 @@
+import {
+  activeInterface,
+  connectedNextHop,
+  addressInPrefix,
+  routedInterface,
+  hostInterfaceAddressValid,
+  projectHostInterfaces,
+} from '../model/interfaces';
+import { hardwareState, operationalNetwork, physicalLinkState, transferVlan } from '../model/ports';
 import { defaultServices } from '../devices/deviceCatalog';
 import { layer2Path, reconcileDhcp, vlanInterface } from '../model/dhcp';
 import { resolveDns } from '../model/dns';
@@ -10,12 +19,12 @@ import {
   isHypervisor,
   isPublicModelIp,
   isRoutingDevice,
-  linkAllowsVlan,
   matchesAclAddress,
   publicAddresses,
   routeSubnet,
   topologyLinks,
   tracePath,
+  traceLinkPath,
   validHostname,
   validIp,
 } from '../model/network';
@@ -52,20 +61,18 @@ type Plan = {
   path: string[];
   error?: string;
 };
-export function simulateNetwork(
-  network: Network,
-  probe: Probe,
-  options: EngineOptions = {},
-): Result {
-  network = reconcileDhcp(network);
+function simulatePacket(network: Network, probe: Probe, options: EngineOptions = {}): Result {
+  network = operationalNetwork(network);
   const byId = new Map(network.devices.map((d) => [d.id, d]));
   const links = topologyLinks(network);
   const source = byId.get(probe.source);
+  const traversedLinks: string[] = [];
   const fail = (reason: string, path: string[] = [], steps: string[] = []): Result => ({
     ok: false,
     path,
     reason,
     steps: steps.length ? steps : [reason],
+    linkPath: [...traversedLinks],
   });
   if (!source) return fail('Wybierz źródło komunikacji.');
   if (source.kind === 'switch-unmanaged')
@@ -83,7 +90,7 @@ export function simulateNetwork(
     if (!source.online || !source.ip)
       return fail('Źródło jest wyłączone lub czeka na DHCP; nie może wysłać zapytania DNS.');
     const answer = resolveDns(network, source.id, probe.destination, (q) =>
-      simulateNetwork(network, q),
+      simulateNetwork(network, { ...q, sourceInterfaceId: probe.sourceInterfaceId }),
     );
     if (!answer.ok) {
       const result = answer.query || fail(answer.reason);
@@ -121,6 +128,7 @@ export function simulateNetwork(
         serverId: answer.serverId,
         ok: true,
         queryPath,
+        queryLinkPath: traceLinkPath(query),
         querySteps: query.steps,
       },
     };
@@ -176,7 +184,9 @@ export function simulateNetwork(
   const ownerOfAddress = (ip: string) =>
     network.devices.find(
       (d) =>
-        d.ip === ip || network.vlans.some((v) => v.gateway === ip && v.gatewayDeviceId === d.id),
+        d.ip === ip ||
+        d.interfaces?.some((n) => n.enabled && n.ip === ip) ||
+        network.vlans.some((v) => v.gateway === ip && v.gatewayDeviceId === d.id),
     );
   let target = selected || ownerOfAddress(requestedIp);
   if (selected?.ipMode === 'auto' && !selected.ip)
@@ -250,6 +260,7 @@ export function simulateNetwork(
     d.online &&
     (d.ip === ip ||
       d.wanIp === ip ||
+      !!d.interfaces?.some((n) => n.enabled && n.ip === ip) ||
       network.vlans.some((v) => v.gatewayDeviceId === d.id && v.gateway === ip));
   for (const ip of [options.sourceAddress || source.ip, targetIp]) {
     if (network.devices.filter((d) => ownsAddress(d, ip)).length > 1)
@@ -260,12 +271,17 @@ export function simulateNetwork(
   for (const d of [source, target]) {
     if (!d || isRoutingDevice(d) || d.kind === 'internet') continue;
     const scope = network.vlans.find((v) => v.id === d.vlan);
-    if (!scope || !hostInVlan(d.ip, scope))
+    if (
+      activeInterface(d)
+        ? !hostInterfaceAddressValid(activeInterface(d)!)
+        : !scope || !hostInVlan(d.ip, scope)
+    )
       return fail(`${d.name}: adres IP nie należy do skonfigurowanej podsieci VLAN ${d.vlan}.`);
   }
   // A router can own several IP interfaces; its management VLAN is not the target VLAN of every SVI.
   const targetVlan =
     network.vlans.find((v) => v.gateway === targetIp && v.gatewayDeviceId === target?.id)?.id ??
+    target?.interfaces?.find((n) => n.enabled && n.ip === targetIp)?.vlan ??
     target?.vlan;
   function findPath(from: string, to: string, destinationIp: string): Plan {
     const queue: string[][] = [[from]];
@@ -298,17 +314,20 @@ export function simulateNetwork(
           next = next.filter((id) => byId.get(id)?.kind === 'vm' && byId.get(id)?.hostId === d.id);
       }
       if (isRoutingDevice(d)) {
-        const connected = network.vlans.find(
-          (v) =>
-            v.gatewayDeviceId === d.id &&
-            (() => {
-              const p = routeSubnet(v.cidr);
-              const ip = ipNumber(destinationIp);
-              return ip >= p.start && ip <= p.end;
-            })(),
-        );
+        const nic = routedInterface(d, destinationIp);
+        const connected = nic
+          ? { id: nic.vlan, cidr: `${nic.ip}/${nic.prefix}` }
+          : network.vlans.find(
+              (v) =>
+                (v.gatewayDeviceId === d.id || (v.id === d.vlan && hostInVlan(d.ip, v))) &&
+                (() => {
+                  const p = routeSubnet(v.cidr);
+                  const ip = ipNumber(destinationIp);
+                  return ip >= p.start && ip <= p.end;
+                })(),
+            );
         if (connected) {
-          const local = layer2Path(network, d.id, to, connected.id);
+          const local = layer2Path(network, d.id, to, connected.id, nic?.portId);
           if (local) return { path: [...path, ...local.slice(1)] };
           blocked = {
             path,
@@ -329,7 +348,23 @@ export function simulateNetwork(
           blocked = { path, error: `${d.name}: brak trasy do ${destinationIp}.` };
           continue;
         }
-        if (!next.includes(route.nextHopId) || !byId.get(route.nextHopId)?.online) {
+        const nextDevice = byId.get(route.nextHopId);
+        const hop = nextDevice && connectedNextHop(network, d, nextDevice);
+        if (hop && nextDevice?.online) {
+          if (visited.has(nextDevice.id)) {
+            blocked = { path, error: `${d.name}: pętla routingu do ${destinationIp}.` };
+            continue;
+          }
+          const local = layer2Path(network, d.id, nextDevice.id, hop.vlan, hop.portId);
+          if (!local) {
+            blocked = { path, error: `${d.name}: następny skok ${hop.ip} jest nieosiągalny w L2.` };
+            continue;
+          }
+          visited.add(nextDevice.id);
+          queue.push([...path, ...local.slice(1)]);
+          continue;
+        }
+        if (!next.includes(route.nextHopId) || !nextDevice?.online) {
           blocked = { path, error: `${d.name}: następny skok trasy jest odłączony lub wyłączony.` };
           continue;
         }
@@ -351,7 +386,18 @@ export function simulateNetwork(
     );
   }
   function sourcePath(to: string, destinationIp: string): Plan {
-    const scope = network.vlans.find((v) => v.id === source!.vlan);
+    const nic = activeInterface(source!);
+    const scope =
+      network.vlans.find((v) => v.id === source!.vlan) ||
+      (nic
+        ? {
+            id: nic.vlan,
+            name: nic.name,
+            cidr: `${nic.ip}/${nic.prefix}`,
+            gateway: nic.gateway,
+            gatewayDeviceId: undefined,
+          }
+        : undefined);
     const normal = !isRoutingDevice(source!) && source!.kind !== 'internet';
     if (normal && !scope)
       return {
@@ -359,8 +405,11 @@ export function simulateNetwork(
         error:
           'Przypisz urządzenie do sieci LAN z maską i bramą. Bez interfejsu podsieci nie można ustalić trasy.',
       };
-    if (normal && scope && targetVlan === source!.vlan) {
-      const p = routeSubnet(scope.cidr);
+    const onLink = nic
+      ? addressInPrefix(targetIp, nic.ip, nic.prefix)
+      : targetVlan === source!.vlan;
+    if (normal && scope && onLink) {
+      const p = routeSubnet(nic ? `${nic.ip}/${nic.prefix}` : scope.cidr);
       const ip = ipNumber(targetIp);
       if (ip >= p.start && ip <= p.end) {
         const path = layer2Path(network, source!.id, to, scope.id);
@@ -372,20 +421,27 @@ export function simulateNetwork(
             };
       }
     }
-    const needsGateway =
-      normal &&
-      scope &&
-      !(
-        targetVlan === source!.vlan &&
-        targetIp &&
-        (() => {
-          const p = routeSubnet(scope.cidr);
-          const ip = ipNumber(targetIp);
-          return ip >= p.start && ip <= p.end;
-        })()
-      );
+    const needsGateway = normal && scope && !onLink;
     if (needsGateway) {
-      const gateway = byId.get(scope.gatewayDeviceId || '');
+      const gateway = nic
+        ? network.devices.find(
+            (d) =>
+              nic.gateway &&
+              (d.ip === nic.gateway ||
+                d.interfaces?.some((n) => n.enabled && n.ip === nic.gateway) ||
+                network.vlans.some((v) => v.gateway === nic.gateway && v.gatewayDeviceId === d.id)),
+          )
+        : byId.get(scope.gatewayDeviceId || '');
+      if (
+        nic &&
+        (!nic.gateway ||
+          !addressInPrefix(nic.gateway, nic.ip, nic.prefix) ||
+          nic.gateway === nic.ip)
+      )
+        return {
+          path: [source!.id],
+          error: 'Brak bramy interfejsu lub brama jest poza jego podsiecią.',
+        };
       if (!gateway)
         return { path: [source!.id], error: `Brak skonfigurowanej bramy L3 dla VLAN ${scope.id}.` };
       const first = layer2Path(network, source!.id, gateway.id, scope.id);
@@ -417,6 +473,7 @@ export function simulateNetwork(
   } else plan = sourcePath(target!.id, requestedIp);
   if (!plan.path.length) return fail(plan.error || 'Brak ścieżki.');
   const routedNodes = new Set<string>();
+  const routedIndices = new Set<number>();
   let sourceIp = options.sourceAddress || source.ip;
   let destinationIp = requestedIp;
   let port = probe.port;
@@ -430,6 +487,7 @@ export function simulateNetwork(
       d.kind === 'switch-l3' && i > 0 && i < plan.path.length - 1 && !!vlan && vlan === targetVlan;
     const routingHop = isRoutingDevice(d) && !switching;
     if (routingHop) {
+      routedIndices.add(i);
       if (routedNodes.has(d.id))
         return fail(
           'Pętla routingu: to samo urządzenie L3 zostało odwiedzone ponownie.',
@@ -444,12 +502,32 @@ export function simulateNetwork(
         `${d.name}: ${[...messages, reason].join(' ')}`,
       ]);
     if (i > 0) {
-      const wire = links.find(
-        (l) => (l.a === prev?.id && l.b === d.id) || (l.b === prev?.id && l.a === d.id),
-      );
       const wireVlan = vlan || (!isRoutingDevice(d) ? d.vlan : 0);
-      if (wire && !linkAllowsVlan(wire, wireVlan))
-        return stop(`Port access/trunk nie przenosi VLAN ${wireVlan}.`);
+      const prevRoute =
+        prev?.routingMode === 'static' ? selectRoute(prev, destinationIp) : undefined;
+      const prevNextHop = prevRoute && byId.get(prevRoute.nextHopId);
+      const boundPort = routedIndices.has(i - 1)
+        ? routedInterface(prev!, destinationIp)?.portId ||
+          (prevNextHop && connectedNextHop(network, prev!, prevNextHop)?.portId)
+        : undefined;
+      const candidates = links.filter(
+        (l) =>
+          ((l.a === prev?.id && l.b === d.id) || (l.b === prev?.id && l.a === d.id)) &&
+          (!boundPort || (l.a === prev?.id ? l.aPortId : l.bPortId) === boundPort),
+      );
+      const transmissions = candidates.map((wire) => ({
+        wire,
+        sent: transferVlan(network, wire, prev!.id, wireVlan),
+      }));
+      const selectedWire =
+        transmissions.find((t) => !t.sent.error && t.sent.vlan === wireVlan) ||
+        transmissions.find((t) => !t.sent.error) ||
+        transmissions[0];
+      if (selectedWire) {
+        traversedLinks.push(selectedWire.wire.id);
+        if (selectedWire.sent.error) return stop(selectedWire.sent.error);
+        vlan = selectedWire.sent.vlan;
+      } else return stop('Brak zgodnego fizycznego portu do następnego urządzenia.');
       if (routingHop) {
         if (
           vlan &&
@@ -500,6 +578,18 @@ export function simulateNetwork(
           layer2Path(network, d.id, target.id, targetVlan)))
     )
       vlan = targetVlan || 0;
+    if (
+      routingHop &&
+      i < plan.path.length - 1 &&
+      d.routingMode === 'static' &&
+      !routedInterface(d, destinationIp)
+    ) {
+      const route = selectRoute(d, destinationIp);
+      const peer = route && byId.get(route.nextHopId);
+      const hop = peer && connectedNextHop(network, d, peer);
+      if (hop && !(target && targetVlan && layer2Path(network, d.id, target.id, targetVlan)))
+        vlan = hop.vlan;
+    }
     if (translation?.owner.id === d.id) {
       destinationIp = translation.ip;
       port = translation.port;
@@ -519,10 +609,12 @@ export function simulateNetwork(
       const action = rule?.action || d.defaultAcl || 'deny';
       if (action === 'deny')
         return stop(
-          `${rule ? 'Reguła ACL' : 'Domyślna ACL deny any'} blokuje ${probe.protocol}${probe.protocol === 'ICMP' ? '' : ' / ' + port}.`,
+          `${rule ? `Reguła ACL ${d.rules.indexOf(rule) + 1} (${rule.id})` : 'Domyślna ACL deny any'} blokuje ${probe.protocol}${probe.protocol === 'ICMP' ? '' : ' / ' + port}.`,
         );
       messages.push(
-        rule ? 'ACL permit — dopasowana reguła.' : 'ACL permit any — polityka domyślna.',
+        rule
+          ? `ACL permit — reguła ${d.rules.indexOf(rule) + 1} (${rule.id}).`
+          : 'ACL permit any — polityka domyślna.',
       );
     } else if (options.stateful?.has(d.id))
       messages.push('Odpowiedź dopuszczona przez stan wcześniej dozwolonego połączenia.');
@@ -598,6 +690,7 @@ export function simulateNetwork(
     steps,
     packet: { sourceIp, destinationIp, port },
     verdict: 'allowed',
+    linkPath: [...traversedLinks],
   };
   if (probe.checkReply && !options.reply && target) {
     const stateful = new Set(
@@ -617,7 +710,7 @@ export function simulateNetwork(
       network,
       {
         source: target.id,
-        destination: source.id,
+        destination: source.interfaces?.length ? source.ip : source.id,
         protocol: probe.protocol,
         port: probe.protocol === 'ICMP' ? 0 : 49152,
         checkReply: false,
@@ -641,6 +734,7 @@ export function simulateNetwork(
       },
     );
     result.returnPath = reply.path;
+    result.returnLinkPath = reply.linkPath;
     result.steps.push(...reply.steps.slice(1).map((s) => `Odpowiedź: ${s}`));
     result.ok = reply.ok;
     result.reason = reply.ok
@@ -651,6 +745,93 @@ export function simulateNetwork(
     if (!reply.ok) {
       result.verdict = 'unreachable';
       if (!reply.path.length) result.steps[result.steps.length - 1] += ` ${result.reason}`;
+    }
+  }
+  return result;
+}
+
+export function simulateNetwork(
+  network: Network,
+  probe: Probe,
+  options: EngineOptions = {},
+): Result {
+  const leased = reconcileDhcp(network);
+  const hw = hardwareState(leased);
+  const targetDevice = leased.devices.find(
+    (d) =>
+      d.id === probe.destination ||
+      d.ip === probe.destination ||
+      d.interfaces?.some((n) => n.ip === probe.destination),
+  );
+  const sourcePower =
+    hw.powerErrors.get(probe.source) || (targetDevice && hw.powerErrors.get(targetDevice.id));
+  if (sourcePower)
+    return {
+      ok: false,
+      path: [probe.source],
+      steps: [sourcePower],
+      reason: sourcePower,
+      verdict: 'unreachable',
+    };
+  const publicDestination =
+    leased.devices.find((d) => d.id === probe.source)?.kind === 'internet' && targetDevice?.wanIp
+      ? targetDevice.wanIp
+      : probe.destination;
+  const mappedTargetIp = leased.devices.filter(hasWan).flatMap((d) => {
+    const pf = d.portForwards?.find(
+      (r) =>
+        r.enabled &&
+        r.externalIp === publicDestination &&
+        r.externalPort === probe.port &&
+        r.protocol === probe.protocol,
+    );
+    const nat = d.staticNat?.find((r) => r.enabled && r.publicIp === publicDestination);
+    return pf ? [pf.internalIp] : nat ? [nat.privateIp] : [];
+  })[0];
+  const projected = projectHostInterfaces(operationalNetwork(leased), probe, mappedTargetIp);
+  if (projected.error)
+    return {
+      ok: false,
+      path: [probe.source],
+      steps: [projected.error],
+      reason: projected.error,
+      verdict: 'unreachable',
+    };
+  const result = simulatePacket(projected.network, probe, options);
+  result.sourceInterfaceId = projected.sourceNic?.id;
+  result.destinationInterfaceId = projected.targetNic?.id;
+  if (result.ok || result.path.length > 1) {
+    const pathLinks = topologyLinks(projected.network);
+    const speeds = result.path.slice(1).flatMap((id, i) => {
+      const l = result.linkPath?.[i]
+        ? pathLinks.find((l) => l.id === result.linkPath![i])
+        : pathLinks.find(
+            (l) => (l.a === result.path[i] && l.b === id) || (l.b === result.path[i] && l.a === id),
+          );
+      const physical = l
+        ? hw.links.get(l.id) || physicalLinkState(projected.network, l)
+        : undefined;
+      if (l && (l.aPortId || l.bPortId)) {
+        const state = physical;
+        const forward = l.a === result.path[i];
+        const from = forward ? state?.aPort?.name : state?.bPort?.name;
+        const to = forward ? state?.bPort?.name : state?.aPort?.name;
+        const step = Math.min(i + 1, result.steps.length - 1);
+        if (step >= 0)
+          result.steps[step] +=
+            ` Porty ${from || 'auto'} → ${to || 'auto'}; ${state?.speedMbps || 0} Mb/s.${state?.warnings.length ? ' ' + state.warnings.join(' ') : ''}`;
+      }
+      return physical ? [physical.speedMbps] : [];
+    });
+    if (speeds.length) result.bottleneckMbps = Math.min(...speeds);
+  }
+  if (!result.ok && result.path.length <= 1) {
+    const errors = leased.links
+      .filter((l) => l.a === probe.source || l.b === probe.source)
+      .flatMap((l) => hw.links.get(l.id)?.errors || []);
+    if (errors.length) {
+      result.reason += ' ' + [...new Set(errors)].join(' ');
+      result.steps[result.steps.length - 1] = result.reason;
     }
   }
   return result;

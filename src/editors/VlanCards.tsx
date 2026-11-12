@@ -1,3 +1,5 @@
+import { belongsToVlan, primaryInterface } from '../model/interfaces';
+import { hardwareState } from '../model/ports';
 import { ArrowUpRight, Plus } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { subnet, validateNetworkServices, validateVlans } from '../model/network';
@@ -23,6 +25,7 @@ export function VlanCards({
   useEffect(() => {
     if (initialVlan) setEditing({ vlan: initialVlan, originalId: initialVlan.id });
   }, [initialVlan]);
+  const hw = hardwareState(network);
   const [error, setError] = useState('');
   const name = (id?: string) =>
     network.devices.find((d) => d.id === id)?.name || (id ? 'Urządzenie niedostępne' : 'Brak');
@@ -53,15 +56,20 @@ export function VlanCards({
       </div>
       <div className="vlan-cards">
         {network.vlans.map((v) => {
-          const members = network.devices.filter((d) => d.vlan === v.id);
-          const leased = members.filter(
-            (d) =>
-              d.ipMode === 'auto' &&
-              d.lease &&
-              d.lease.vlan === v.id &&
-              d.lease.expiresAt > Date.now() &&
-              d.ip,
-          ).length;
+          const members = network.devices.filter((d) => belongsToVlan(d, v.id));
+          const leased = members.reduce(
+            (count, d) =>
+              count +
+              (d.interfaces || [primaryInterface(d, network)]).filter(
+                (n) =>
+                  n.vlan === v.id &&
+                  n.ipMode === 'auto' &&
+                  n.lease?.vlan === v.id &&
+                  n.lease.expiresAt > Date.now() &&
+                  n.ip,
+              ).length,
+            0,
+          );
           return (
             <button
               type="button"
@@ -118,7 +126,8 @@ export function VlanCards({
               </dl>
               <span className="vlan-card-footer">
                 <span>
-                  {members.length} urządzeń · {members.filter((d) => d.online).length} online
+                  {members.length} urządzeń ·{' '}
+                  {members.filter((d) => d.online && hw.powered.get(d.id) !== false).length} online
                 </span>
                 <span>{leased} dzierżaw DHCP</span>
               </span>

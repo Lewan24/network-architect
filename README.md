@@ -1,4 +1,4 @@
-﻿# Netweave
+# Netweave
 
 Lokalna aplikacja React + TypeScript do projektowania izometrycznych topologii sieci oraz symulacji przepływu pakietów.
 
@@ -17,7 +17,24 @@ npm run dev
 
 Otwórz adres pokazany przez Vite. Weryfikacja: `npm test` i `npm run build`. Katalog `dist` zawiera produkcyjną aplikację statyczną.
 
+Nowe ustawienia są dostępne bez włączania trybu zaawansowanego:
+
+- **Diagnostyka** na górnym pasku otwiera audyt projektu.
+- Zaznacz urządzenie i wybierz **Porty i PoE** lub **Interfejsy IP** nad planszą. Te same sekcje są dostępne w dialogu urządzenia; zakładki zawijają się na wąskim ekranie.
+- W bibliotece wybierz **Obiekty → Połączenia**, następnie dwuklik kabla lub Enter, aby edytować jego medium, długość i oba porty. Działa też dwuklik linii na planszy.
+- W **Symulacji** wybór interfejsu jest widoczny również dla urządzeń z jedną kartą. Przyciski pod polami otwierają konfigurację kart źródła i celu.
+
+Test kontrolek w prawdziwej przeglądarce: `npx playwright install chromium`, następnie `npm run test:ui`. Szczegóły w [przewodniku po kodzie](docs/DEVELOPMENT.md#test-dostępności-interfejsu).
+
 ## Możliwości
+
+- **Interaktywne gniazda:** klikalny panel z nazwami i stanami portów (zielony: aktywny link, szary: wolny/brak linku, czarny: wyłączony). Łączenie urządzeń obejmuje wybór portu początkowego i docelowego oraz rodzaju i długości kabla. Zajęte i niezgodne gniazda są blokowane.
+- **Porty i interfejsy:** skończona liczba gniazd, nazwy i stan administracyjny, osobne access/trunk/native VLAN na obu końcach, prędkości i duplex. Host może mieć wiele kart z własnym IP/DHCP, maską, bramą, metryką i DNS; samo dodanie karty nie włącza routingu. Urządzenia L3 obsługują też jawne statyczne interfejsy przypisane do portów.
+- **Warstwa fizyczna:** RJ45, SFP/SFP+, Cat 5e/6/6A, OM3/OM4/OS2 i pasywny DAC; moduły SX/LX/SR/LR, długości i zgodność profili prędkości. Równoległe kable mają osobne tory i ślad pakietu.
+- **PoE:** standard portu PSE, całkowity budżet oraz moc wymagana przez PD. Niedobór budżetu lub niewłaściwe medium blokuje dostępność odbiornika, bez zmiany zapisanej flagi online. Lokalny zasilacz jest na tym etapie dostępny; nie ma jeszcze UPS-ów i awarii w czasie.
+- **Diagnostyka:** błędy i ostrzeżenia z przejściem do właściwego kabla/urządzenia, problemy VLAN, IP, bramy, DHCP, statycznego next-hop, fizycznego łącza i PoE. Ślad testu pokazuje porty, kabel, regułę ACL, NAT i limit profilu łącza.
+
+Instrukcja, źródła, scenariusze testowe i ograniczenia: [Porty i diagnostyka](docs/PORTS_AND_DIAGNOSTICS.md).
 
 - Izometryczne urządzenia: internet (nadawca zewnętrzny), wspólny router/firewall brzegowy, router wewnętrzny, firewall, switch L2 zarządzalny, L2 niezarządzalny, L3 zarządzalny, serwer, komputer, AP Wi-Fi, VM, drukarka, serwer DNS, kamera IP i telefon komórkowy (klient Wi-Fi). Router i firewall mogą mieć rolę brzegową lub wewnętrzną; jedno urządzenie może realizować WAN, routing, NAT, ACL i DHCP.
 - Dodawanie kliknięciem lub przeciągnięciem, przesuwanie urządzeń, łączenie, usuwanie, powiększanie i przesuwanie canvasu.
@@ -29,13 +46,13 @@ Otwórz adres pokazany przez Vite. Weryfikacja: `npm test` i `npm run build`. Ka
 - Nazwy, stan online/offline oraz konfiguracja urządzeń w dialogu z zatwierdzaniem i anulowaniem zmian.
 - ACL firewalla, routera i switcha L3: permit/deny, protokół, port i pochodzenie ruchu (Internet/LAN/dowolne). Źródło i cel wybiera się jako urządzenie, cały VLAN, dowolny adres lub własny IPv4/CIDR. Odwołanie do urządzenia aktualizuje się wraz z jego adresem DHCP; odwołanie do VLAN-u obejmuje jego podsieć. Pierwsze dopasowanie wygrywa. Domyślnie obowiązuje `deny any`; jawne `permit any` z istniejących konfiguracji pozostaje zachowane.
 - Firewall: adres WAN, włączane/wyłączane przekierowania TCP/UDP (publiczny IP:port → prywatny IP:port) i static NAT 1:1. Test publicznego IP realizuje DNAT na firewallu, następnie ACL na przetłumaczonym celu. Wyjście mapowanego hosta do internetu realizuje SNAT po ACL. Port forwarding ma pierwszeństwo przed static NAT.
-- Router i switch L3: automatyczny wybór z topologii lub tablica tras statycznych. Sieci własnych interfejsów L3 mają trasy connected również w trybie statycznym. Dla tras użytkownika najdłuższy prefiks wygrywa, następnie niższa metryka. Następny skok wskazuje bezpośredniego sąsiada. `0.0.0.0/0` jest trasą domyślną. Brak bramy, interfejsu SVI, trasy, skoku lub pętla L3 zatrzymują pakiet. Ponowne przejście przez switch L2 przy router-on-a-stick jest dozwolone.
+- Router i switch L3: automatyczny wybór z topologii lub tablica tras statycznych. Sieci własnych interfejsów L3 mają trasy connected również w trybie statycznym. Dla tras użytkownika najdłuższy prefiks wygrywa, następnie niższa metryka. Następny skok wskazuje sąsiada osiągalnego w podłączonej sieci L2, również przez switch. `0.0.0.0/0` jest trasą domyślną. Brak bramy, interfejsu SVI, trasy, skoku lub pętla L3 zatrzymują pakiet. Ponowne przejście przez switch L2 przy router-on-a-stick jest dozwolone.
 - L2 zarządzalny przenosi wybrane VLAN-y bez routingu; pusta lista pozwala przenosić VLAN-y zgodnie z ustawieniami łączy. VLAN zarządzania jest niezależny od VLAN-ów przesyłanych przez switch. L3 przełącza ruch lokalny w L2, a przez skonfigurowane interfejsy SVI realizuje routing i ACL. Switch niezarządzalny ma jedną sieć dostępu, bez IP i testowania interfejsu zarządzania. Typ switcha można zmienić w dialogu.
 - Serwer może być hypervisorem VMware ESXi, Proxmox VE, Hyper-V lub KVM. VM ma własny IP/VLAN i hosta; połączenie vNIC jest tworzone automatycznie i rysowane linią przerywaną. Wyłączenie hosta odcina gości. VLAN zarządzania hosta nie zastępuje VLAN-u VM. Goście w różnych VLAN-ach potrzebują urządzenia routującego. Z listy gości hosta można dodawać i edytować VM.
 - AP ma SSID i osobny VLAN klientów (domyślnie taki sam jak VLAN zarządzania); działa jako most bez NAT. Drukarka jest osobnym urządzeniem końcowym.
 - Test ICMP, TCP i UDP, animacja każdego przeskoku oraz opcjonalnie odpowiedzi i jej trasy (domyślnie włączona w UI). Firewall dopuszcza odpowiedź konkretnego dozwolonego testu przez stan połączenia i odwraca NAT. Routery wewnętrzne i switche L3 nadal sprawdzają ACL. Test TCP/UDP sprawdza deklarację aktywnej usługi na docelowym porcie. Wynik odróżnia ACL, zamknięty port i brak odpowiedzi; samo dostarczenie pakietu nie oznacza otwartego portu.
 - Internet skanuje wyłącznie skonfigurowane publiczne adresy WAN i aliasy NAT, losując TCP/UDP/ICMP oraz popularne i losowe porty. Nie wybiera prywatnych hostów ani nie zna ich listy. Ręczny test z Internetu do prywatnego IP/ID także jest blokowany. Publiczny adres nadawcy na obiekcie Internet i publiczny adres WAN brzegu to dwa różne adresy. Bez port forwarding/static NAT albo jawnie opublikowanej usługi na brzegu ruch nie przechodzi do LAN. Prywatne źródło potrzebuje NAT wyjściowego do dostępu do internetu.
-- Biblioteka urządzeń ma rozwijane kategorie i wyszukiwanie po nazwie, opisie i kategorii. Urządzenia dodaje się z biblioteki; menu pustej planszy zawiera ustawienia VLAN-ów i dopasowanie widoku. Menu urządzeń i połączeń udostępnia edycję, duplikowanie, łączenie, stan, źródło/cel testu i usuwanie. Po połączeniu dwóch urządzeń narzędzie wraca do Select. Dwuklik połączenia otwiera tryb obu portów: automatyczny, access z jednym VLAN-em albo trunk z listą VLAN-ów. Ustawienia wpływają na DHCP i ruch danych.
+- Biblioteka urządzeń ma rozwijane kategorie i wyszukiwanie po nazwie, opisie i kategorii. Urządzenia dodaje się z biblioteki; menu pustej planszy zawiera ustawienia VLAN-ów i dopasowanie widoku. Menu urządzeń i połączeń udostępnia edycję, duplikowanie, łączenie, stan, źródło/cel testu i usuwanie. Po połączeniu dwóch urządzeń narzędzie wraca do Select. Dwuklik połączenia otwiera osobną konfigurację obu portów, rodzaju i długości kabla oraz etykiety. Ustawienia wpływają na DHCP i ruch danych.
 - Przesuwanie tła lewym przyciskiem; Spacja + przeciągnięcie, środkowy przycisk lub H również nad obiektami. Zoom kółkiem zachowuje punkt pod kursorem. Shift + kółko przesuwa widok. Strzałki przesuwają urządzenie z fokusem o 10 jednostek.
 - Sekcję VLAN zaznacza się kliknięciem jej nagłówka lub tła. Przeciągnięcie przesuwa wszystkie urządzenia sekcji; strzałki przesuwają grupę, a cofnięcie przywraca całą operację.
 - Domyślny Internet ma statyczny adres nadawcy 203.0.113.1 i jedno połączenie z routerem/firewallem. Połączenie automatycznie ustawia sąsiada jako brzeg i nadaje mu przykładowy WAN. Starszy projekt bez Internetu jest uzupełniany. Skan wybiera tylko WAN i aliasy NAT pierwszego urządzenia.
@@ -72,7 +89,7 @@ To deterministyczna symulacja modelowa w przeglądarce, a nie emulator urządze�
 
 Implementacja sprawdza logiczne warunki DHCP, L2/ARP, masek/bram, access/trunk, connected/static routing, DNAT/SNAT, ACL i deklarowanych usług. Stan odpowiedzi i odwrotne NAT istnieją w obrębie jednego testu. Obsługa WAN/LAN w ACL oznacza pochodzenie ruchu; model nie odtwarza kompletu osobnych interfejsów i stref konkretnego producenta.
 
-Nie jest to pełna emulacja RouterOS, pfSense, IOS ani systemów gości. Brak rzeczywistych ramek, MAC/ARP cache, stosu TCP (SYN/ACK, retransmisje, okna, timery), trwałej tablicy conntrack, wielosesyjnego PAT, STP, dynamicznego routingu, rekurencyjnego DNS/DNSSEC/cache TTL, radiowej propagacji i rzeczywistych usług OS. DHCP jest modelem DORA/relay/dzierżaw, a nie implementacją datagramów RFC 2131; identyfikatorem klienta jest ID urządzenia. Lista usług opisuje model, nie uruchamia procesów. Test UDP weryfikuje deklarowaną usługę i ścieżkę odpowiedzi, nie przewiduje milczenia rzeczywistej aplikacji. Pomyślny wynik nie potwierdza działania fizycznej sieci ani odporności usługi na ataki. Do takich testów potrzebna jest emulacja systemów lub dostęp do rzeczywistych urządzeń.
+Nie jest to pełna emulacja RouterOS, pfSense, IOS ani systemów gości. Brak rzeczywistych ramek, MAC/ARP cache, pomiaru BER i obciążenia łączy, stosu TCP (SYN/ACK, retransmisje, okna, timery), trwałej tablicy conntrack, wielosesyjnego PAT, STP, dynamicznego routingu, rekurencyjnego DNS/DNSSEC/cache TTL, radiowej propagacji i rzeczywistych usług OS. DHCP jest modelem DORA/relay/dzierżaw, a nie implementacją datagramów RFC 2131; identyfikatorem klienta jest ID urządzenia. Lista usług opisuje model, nie uruchamia procesów. Test UDP weryfikuje deklarowaną usługę i ścieżkę odpowiedzi, nie przewiduje milczenia rzeczywistej aplikacji. Pomyślny wynik nie potwierdza działania fizycznej sieci ani odporności usługi na ataki. Do takich testów potrzebna jest emulacja systemów lub dostęp do rzeczywistych urządzeń.
 
 ## Podstawa modelu i weryfikacja
 

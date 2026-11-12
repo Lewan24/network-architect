@@ -59,3 +59,19 @@ describe('packet animation timeline', () => {
     expect(flightFrame(duration, route)).toEqual({ x: 200, y: 100 });
   });
 });
+
+it('separates parallel cables and keeps the packet curve at the actual endpoint positions', async () => {
+  const { cableGeometry } = await import('../canvas/linkGeometry');
+  const cables = [
+    { id: 'a', a: 'one', b: 'two' },
+    { id: 'b', a: 'two', b: 'one' },
+  ];
+  const start = { x: 0, y: 0 },
+    end = { x: 100, y: 0 };
+  const first = cableGeometry(cables[0], start, end, cables);
+  const second = cableGeometry(cables[1], end, start, cables);
+  expect(first.at(0)).toEqual(start);
+  expect(first.at(1)).toEqual(end);
+  expect(first.middle.y).not.toBe(second.middle.y);
+  expect(first.at(0.5)).toEqual(first.middle);
+});

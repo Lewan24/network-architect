@@ -1,3 +1,5 @@
+import { connectedNextHop } from './interfaces';
+import { validateHardwareDevice, validateHardwareLink } from './hardwareValidation';
 import { hostInVlan, ipNumber, numberIp, routeSubnet, subnet, validIp } from './addressing';
 import { kinds } from '../devices/deviceCatalog';
 export { hostInVlan, ipNumber, numberIp, routeSubnet, subnet, validIp } from './addressing';
@@ -11,6 +13,14 @@ export function tracePath(result: Result) {
   if (!result.dns?.ok) return data;
   const query = result.dns.queryPath;
   return [...query, ...(query.at(-1) === data[0] ? data.slice(1) : data)];
+}
+
+export function traceLinkPath(result: Result): string[] {
+  return [
+    ...(result.dns?.ok ? result.dns.queryLinkPath || [] : []),
+    ...(result.linkPath || []),
+    ...(result.returnLinkPath || []),
+  ];
 }
 
 export function isRoutingDevice(d: Device) {
@@ -73,6 +83,7 @@ export function matchesAclAddress(value: string, ip: string, network: Network) {
         [
           d.ip,
           d.wanIp,
+          ...(d.interfaces || []).filter((n) => n.enabled).map((n) => n.ip),
           ...network.vlans.filter((v) => v.gatewayDeviceId === d.id).map((v) => v.gateway),
         ].some((address) => !!address && address === ip),
     );
@@ -150,6 +161,7 @@ export function topologyLinks(network: Network): Link[] {
 }
 
 export function validateDeviceConfig(d: Device, network?: Network, strictNeighbors = true) {
+  validateHardwareDevice(d);
   if (
     d.dnsServerIds !== undefined &&
     (!Array.isArray(d.dnsServerIds) ||
@@ -277,9 +289,16 @@ export function validateDeviceConfig(d: Device, network?: Network, strictNeighbo
       strictNeighbors &&
       !topologyLinks(network).some(
         (l) => (l.a === d.id && l.b === r.nextHopId) || (l.b === d.id && l.a === r.nextHopId),
+      ) &&
+      !connectedNextHop(
+        network,
+        d,
+        network.devices.find((n) => n.id === r.nextHopId)!,
       )
     )
-      throw Error('Następny skok trasy musi być bezpośrednio połączony z urządzeniem.');
+      throw Error(
+        'Następny skok trasy musi być bezpośrednio połączony albo osiągalny we wspólnej sieci L2.',
+      );
   }
   const forwards = new Set<string>();
   for (const r of d.portForwards || []) {
@@ -442,7 +461,12 @@ export function applyVlans(network: Network, vlans: Vlan[]): Network {
       throw Error(
         `VLAN ${d.vlan} jest używany przez „${d.name}”. Najpierw przenieś urządzenie do innego VLAN-u.`,
       );
-    if (d.kind !== 'switch-unmanaged' && d.ipMode === 'static' && !hostInVlan(d.ip, vlan))
+    if (
+      d.kind !== 'switch-unmanaged' &&
+      !d.interfaces?.length &&
+      d.ipMode === 'static' &&
+      !hostInVlan(d.ip, vlan)
+    )
       throw Error(
         `Statyczny IP urządzenia „${d.name}” nie należy do nowej podsieci VLAN ${d.vlan}. Zmień go lub włącz adres automatyczny.`,
       );
@@ -519,6 +543,7 @@ export function parseNetwork(text: string): Network {
     )
       throw Error('Nieprawidłowe połączenie.');
     links.add(l.id);
+    validateHardwareLink(l);
     if (
       (l.mode !== undefined && !['auto', 'access', 'trunk'].includes(l.mode)) ||
       (l.accessVlan !== undefined &&

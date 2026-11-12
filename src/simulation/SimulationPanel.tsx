@@ -10,6 +10,7 @@ import {
 import { useEffect, useState } from 'react';
 import { demoScenarios } from '../examples/demoNetwork';
 import { internetTargets } from '../model/internetModel';
+import { supportsInterfaces } from '../model/interfaces';
 import { tracePath, validHostname, validIp } from '../model/network';
 import type { Network, Probe } from '../model/networkTypes';
 import type { useSimulation } from './useSimulation';
@@ -19,8 +20,9 @@ type Props = {
   setProbe: (probe: Probe) => void;
   sim: ReturnType<typeof useSimulation>;
   close: () => void;
+  editInterfaces: (id: string) => void;
 };
-export function TrafficPanel({ network, probe, setProbe, sim, close }: Props) {
+export function TrafficPanel({ network, probe, setProbe, sim, close, editInterfaces }: Props) {
   const [mode, setMode] = useState<'device' | 'ip'>(
     network.devices.some((d) => d.id === probe.destination) ? 'device' : 'ip',
   );
@@ -32,6 +34,8 @@ export function TrafficPanel({ network, probe, setProbe, sim, close }: Props) {
   const pending = active?.status === 'pending';
   const devices = network.devices.filter((d) => d.kind !== 'switch-unmanaged');
   const external = network.devices.find((d) => d.id === probe.source)?.kind === 'internet';
+  const sourceDevice = network.devices.find((d) => d.id === probe.source);
+  const targetDevice = network.devices.find((d) => d.id === probe.destination);
   useEffect(() => {
     if (external) {
       setMode('ip');
@@ -128,8 +132,11 @@ export function TrafficPanel({ network, probe, setProbe, sim, close }: Props) {
           <label className="field">
             <span>Źródło</span>
             <select
+              aria-label="Źródło"
               value={probe.source}
-              onChange={(e) => setProbe({ ...probe, source: e.target.value })}
+              onChange={(e) =>
+                setProbe({ ...probe, source: e.target.value, sourceInterfaceId: undefined })
+              }
             >
               <option value="">Wybierz urządzenie</option>
               {devices.map((d) => (
@@ -139,6 +146,38 @@ export function TrafficPanel({ network, probe, setProbe, sim, close }: Props) {
               ))}
             </select>
           </label>
+          {sourceDevice && supportsInterfaces(sourceDevice) && (
+            <div className="interface-picker">
+              <label className="field">
+                <span>Interfejs źródła</span>
+                <select
+                  aria-label="Interfejs źródła"
+                  value={probe.sourceInterfaceId || ''}
+                  onChange={(e) =>
+                    setProbe({ ...probe, sourceInterfaceId: e.target.value || undefined })
+                  }
+                >
+                  <option value="">
+                    {sourceDevice.interfaces?.length
+                      ? 'Automatycznie według trasy'
+                      : `Główny · ${sourceDevice.ip || 'oczekuje na DHCP'}`}
+                  </option>
+                  {sourceDevice.interfaces?.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.name} · {n.ip || 'DHCP'} /{n.prefix}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => editInterfaces(sourceDevice.id)}
+              >
+                Konfiguruj interfejsy źródła
+              </button>
+            </div>
+          )}
           <div className="sim-target-label">
             <span>Cel komunikacji</span>
             <div>
@@ -177,7 +216,13 @@ export function TrafficPanel({ network, probe, setProbe, sim, close }: Props) {
               <select
                 aria-label="Cel komunikacji"
                 value={probe.destination}
-                onChange={(e) => setProbe({ ...probe, destination: e.target.value })}
+                onChange={(e) =>
+                  setProbe({
+                    ...probe,
+                    destination: e.target.value,
+                    destinationInterfaceId: undefined,
+                  })
+                }
               >
                 <option value="">Wybierz urządzenie</option>
                 {devices.map((d) => (
@@ -190,7 +235,13 @@ export function TrafficPanel({ network, probe, setProbe, sim, close }: Props) {
               <select
                 aria-label="Publiczny WAN celu"
                 value={probe.destination}
-                onChange={(e) => setProbe({ ...probe, destination: e.target.value })}
+                onChange={(e) =>
+                  setProbe({
+                    ...probe,
+                    destination: e.target.value,
+                    destinationInterfaceId: undefined,
+                  })
+                }
               >
                 <option value="">Skonfiguruj publiczny WAN</option>
                 {internetTargets(network).map((ip) => (
@@ -205,7 +256,13 @@ export function TrafficPanel({ network, probe, setProbe, sim, close }: Props) {
                 aria-label="Docelowy adres IPv4 lub nazwa DNS"
                 value={probe.destination}
                 placeholder="IPv4 lub npm.lab.home.arpa"
-                onChange={(e) => setProbe({ ...probe, destination: e.target.value })}
+                onChange={(e) =>
+                  setProbe({
+                    ...probe,
+                    destination: e.target.value,
+                    destinationInterfaceId: undefined,
+                  })
+                }
               />
             )}
             <button
@@ -214,12 +271,50 @@ export function TrafficPanel({ network, probe, setProbe, sim, close }: Props) {
               aria-label="Zamień źródło i cel"
               disabled={mode === 'ip'}
               onClick={() =>
-                setProbe({ ...probe, source: probe.destination, destination: probe.source })
+                setProbe({
+                  ...probe,
+                  source: probe.destination,
+                  destination: probe.source,
+                  sourceInterfaceId: probe.destinationInterfaceId,
+                  destinationInterfaceId: probe.sourceInterfaceId,
+                })
               }
             >
               <ArrowsLeftRight />
             </button>
           </div>
+          {mode === 'device' && targetDevice && supportsInterfaces(targetDevice) && (
+            <div className="interface-picker">
+              <label className="field">
+                <span>Interfejs celu</span>
+                <select
+                  aria-label="Interfejs celu"
+                  value={probe.destinationInterfaceId || ''}
+                  onChange={(e) =>
+                    setProbe({ ...probe, destinationInterfaceId: e.target.value || undefined })
+                  }
+                >
+                  <option value="">
+                    {targetDevice.interfaces?.length
+                      ? 'Interfejs główny'
+                      : `Główny · ${targetDevice.ip || 'oczekuje na DHCP'}`}
+                  </option>
+                  {targetDevice.interfaces?.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.name} · {n.ip || 'DHCP'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => editInterfaces(targetDevice.id)}
+              >
+                Konfiguruj interfejsy celu
+              </button>
+            </div>
+          )}
           <div className="sim-protocol-row">
             <label className="field">
               <span>Protokół</span>

@@ -1,5 +1,5 @@
 import { Info, Plus, Trash } from '@phosphor-icons/react';
-import { topologyLinks } from '../model/network';
+import { isRoutingDevice } from '../model/network';
 import type { Device, Network, StaticRoute } from '../model/networkTypes';
 
 export function RoutingEditor({
@@ -11,10 +11,9 @@ export function RoutingEditor({
   network: Network;
   patch: (p: Partial<Device>) => void;
 }) {
-  const neighbors = topologyLinks(network)
-    .flatMap((l) => (l.a === d.id ? [l.b] : l.b === d.id ? [l.a] : []))
-    .map((id) => network.devices.find((x) => x.id === id)!)
-    .filter(Boolean);
+  const neighbors = network.devices.filter(
+    (n) => n.id !== d.id && (isRoutingDevice(n) || n.kind === 'internet'),
+  );
   const routes = d.routes || [];
   function update(id: string, p: Partial<StaticRoute>) {
     patch({ routes: routes.map((r) => (r.id === id ? { ...r, ...p } : r)) });
@@ -82,7 +81,7 @@ export function RoutingEditor({
                 value={r.nextHopId}
                 onChange={(e) => update(r.id, { nextHopId: e.target.value })}
               >
-                <option value="">Wybierz połączenie</option>
+                <option value="">Wybierz router następnego skoku</option>
                 {neighbors.map((n) => (
                   <option key={n.id} value={n.id}>
                     {n.name} · {n.ip}
@@ -119,8 +118,9 @@ export function RoutingEditor({
       )}
       <p className="info-line">
         <Info />
-        0.0.0.0/0 = trasa domyślna. Następny skok musi być bezpośrednim sąsiadem. Przy zaznaczonym
-        sprawdzaniu odpowiedzi tablica jest weryfikowana także w drodze powrotnej.
+        0.0.0.0/0 = trasa domyślna. Następny skok musi być osiągalny w podłączonej sieci L2 (także
+        przez switch). Przy zaznaczonym sprawdzaniu odpowiedzi tablica jest weryfikowana także w
+        drodze powrotnej.
       </p>
     </section>
   );

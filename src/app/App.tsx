@@ -1,3 +1,6 @@
+import { createPortConnection } from '../model/portConnections';
+import { PortConnectionDialog } from '../editors/PortConnectionDialog';
+import { DiagnosticsDialog } from '../components/DiagnosticsDialog';
 import {
   ArrowClockwise,
   ArrowCounterClockwise,
@@ -21,11 +24,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ContextMenu, MenuItem } from '../components/ContextMenu';
 import { DeviceLibrary } from '../components/DeviceLibrary';
 import { HelpDialog } from '../components/HelpDialog';
-import { DeviceDialog } from '../editors/DeviceDialog';
+import { DeviceDialog, type DeviceTab } from '../editors/DeviceDialog';
 import { reconcileDhcp } from '../model/dhcp';
 import { VlanDialog } from '../editors/VlanDialog';
 import { ExampleMenu } from '../examples/ExampleMenu';
-import { blankProject, connectInternet, internetConnection } from '../model/internetModel';
+import { blankProject } from '../model/internetModel';
 import { LinkDialog } from '../editors/LinkDialog';
 import { hasWan, isHypervisor, parseNetwork, topologyLinks } from '../model/network';
 import {
@@ -35,7 +38,7 @@ import {
   type Tool,
 } from '../canvas/NetworkCanvas';
 import { moveNetworkGroup } from '../canvas/networkGroups';
-import type { Kind, Network, Probe } from '../model/networkTypes';
+import type { Kind, Network, Probe, Port, Cable } from '../model/networkTypes';
 import {
   createGuestDevice,
   createNetworkDevice,
@@ -53,10 +56,15 @@ export function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>('select');
   const [connection, setConnection] = useState<string | null>(null);
+  const [connectionPort, setConnectionPort] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState('');
+  const [portPicker, setPortPicker] = useState<{ deviceId: string; target: boolean } | null>(null);
   const [simulation, setSimulation] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const [editingTab, setEditingTab] = useState<DeviceTab>('general');
   const [vlansOpen, setVlansOpen] = useState<number | 'all' | null>(null);
   const [help, setHelp] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [context, setContext] = useState<ContextTarget | null>(null);
   const [grid, setGrid] = useState(true);
   const [probe, setProbe] = useState<Probe>(() => ({
@@ -73,7 +81,17 @@ export function App() {
   const editDevice = net.devices.find((d) => d.id === editing);
   const [editingLink, setEditingLink] = useState<string | null>(null);
   const linkForEdit = net.links.find((l) => l.id === editingLink);
-  function openEditor(id: string) {
+  const connectionDevice = net.devices.find((d) => d.id === connection);
+  const connectionSocket = connectionDevice?.ports?.find((p) => p.id === connectionPort);
+  const pickingDevice = net.devices.find((d) => d.id === portPicker?.deviceId);
+  useEffect(() => {
+    if (!connection) {
+      setConnectionPort(null);
+      setPortPicker(null);
+    } else if (!connectionDevice || (connectionPort && !connectionSocket)) cancelConnection();
+  }, [connection, connectionPort, connectionDevice, connectionSocket]);
+  function openEditor(id: string, section: DeviceTab = 'general') {
+    setEditingTab(section);
     if (id.startsWith('zone:')) setVlansOpen(Number(id.slice(5)));
     else if (id.startsWith('virtual:')) setEditing(id.slice(8));
     else if (net.links.some((l) => l.id === id)) setEditingLink(id);
@@ -88,8 +106,7 @@ export function App() {
     commit(next);
     sim.clear();
     setSelected(null);
-    setConnection(null);
-    setTool('select');
+    cancelConnection();
     setSimulation(false);
     setEditing(null);
     setEditingLink(null);
@@ -143,7 +160,7 @@ export function App() {
       const device = createNetworkDevice(net, kind, point);
       commit({ ...net, devices: [...net.devices, device] });
       setSelected(device.id);
-      if (kind === 'vm') setEditing(device.id);
+      if (kind === 'vm') openEditor(device.id);
     } catch (e) {
       notify((e as Error).message);
     }
@@ -155,7 +172,7 @@ export function App() {
       const vm = createGuestDevice(net, host);
       commit({ ...net, devices: [...net.devices, vm] });
       setSelected(vm.id);
-      setEditing(vm.id);
+      openEditor(vm.id);
     } catch (e) {
       notify((e as Error).message);
     }
@@ -175,24 +192,33 @@ export function App() {
       notify((e as Error).message);
     }
   }
+  function cancelConnection() {
+    setConnectionError('');
+    setConnection(null);
+    setConnectionPort(null);
+    setPortPicker(null);
+    setTool('select');
+  }
+  function beginConnection(id: string) {
+    setConnectionError('');
+    const device = net.devices.find((d) => d.id === id);
+    if (!device) return;
+    setContext(null);
+    setTool('connect');
+    setConnection(id);
+    setConnectionPort(null);
+    setPortPicker(device.kind === 'vm' ? null : { deviceId: id, target: false });
+    if (device.kind === 'vm')
+      notify('Wybierz hypervisor dla karty wirtualnej. Nie zajmie to fizycznego gniazda hosta.');
+  }
   function connect(id: string) {
     if (!connection) {
-      setConnection(id);
+      beginConnection(id);
       return;
     }
-    if (connection === id) return;
-    if (net.devices.some((d) => d.kind === 'internet' && (d.id === id || d.id === connection))) {
-      try {
-        const next = connectInternet(net, connection, id, crypto.randomUUID());
-        commit(next);
-        notify(
-          `Brzeg WAN gotowy: ${internetConnection(next).edge?.wanIp}. ACL pozostaje zgodna z konfiguracją urządzenia.`,
-        );
-      } catch (e) {
-        notify((e as Error).message);
-      }
-      setConnection(null);
-      setTool('select');
+    if (connection === id) {
+      if (net.devices.find((d) => d.id === id)?.kind !== 'vm')
+        setPortPicker({ deviceId: id, target: false });
       return;
     }
     const vm = net.devices.find((d) => d.kind === 'vm' && (d.id === id || d.id === connection));
@@ -200,7 +226,6 @@ export function App() {
       const host = net.devices.find((d) => d.id === (vm.id === id ? connection : id));
       if (!host || !isHypervisor(host)) {
         notify('VM połącz z serwerem, który ma rolę hypervisora.');
-        setConnection(null);
         return;
       }
       commit({
@@ -208,20 +233,47 @@ export function App() {
         devices: net.devices.map((d) => (d.id === vm.id ? { ...d, hostId: host.id } : d)),
         links: net.links.filter((l) => l.a !== vm.id && l.b !== vm.id),
       });
-      setConnection(null);
-      setTool('select');
+      notify('Przypisano kartę VM do hypervisora. Fizyczne porty hosta pozostają wolne.');
+      cancelConnection();
       return;
     }
-    if (
-      net.links.some(
-        (l) => (l.a === connection && l.b === id) || (l.b === connection && l.a === id),
-      )
-    )
-      notify('Te urządzenia są już połączone.');
-    else
-      commit({ ...net, links: [...net.links, { id: crypto.randomUUID(), a: connection, b: id }] });
-    setConnection(null);
-    setTool('select');
+    if (!connectionPort) {
+      setPortPicker({ deviceId: connection, target: false });
+      return;
+    }
+    setPortPicker({ deviceId: id, target: true });
+    setConnectionError('');
+  }
+  function chooseConnectionPort(port: Port, options?: { cable: Cable; lengthMeters: number }) {
+    setConnectionError('');
+    if (!portPicker || !connection) return;
+    if (!portPicker.target) {
+      setConnectionPort(port.id);
+      setPortPicker(null);
+      return;
+    }
+    try {
+      const source = net.devices.find((d) => d.id === connection);
+      const sourcePort = source?.ports?.find((p) => p.id === connectionPort);
+      if (!source || !sourcePort)
+        throw Error('Port początkowy już nie istnieje. Wybierz go ponownie.');
+      const next = createPortConnection(
+        net,
+        connection,
+        sourcePort.id,
+        portPicker.deviceId,
+        port.id,
+        crypto.randomUUID(),
+        options,
+      );
+      commit(next);
+      notify(
+        `Połączono ${source.name} / ${sourcePort.name} ↔ ${net.devices.find((d) => d.id === portPicker.deviceId)?.name} / ${port.name}.`,
+      );
+      cancelConnection();
+    } catch (e) {
+      setConnectionError((e as Error).message);
+    }
   }
   function renewClient(id: string) {
     const next = reconcileDhcp(net, Date.now(), id);
@@ -231,6 +283,8 @@ export function App() {
   function changeTool(next: Tool) {
     setTool(next);
     setConnection(null);
+    setConnectionPort(null);
+    setPortPicker(null);
   }
   function exportFile() {
     const url = URL.createObjectURL(
@@ -342,6 +396,8 @@ export function App() {
         </span>
         <div className="header-actions">
           <button
+            className="file-action"
+            aria-label="Resetuj projekt"
             onClick={() => {
               replaceProject(blankProject());
               notify(
@@ -359,21 +415,45 @@ export function App() {
               notify('Wczytano projekt. W panelu symulacji wybierz scenariusz testu.');
             }}
           />
-          <button onClick={() => file.current?.click()} title="Importuj JSON">
+          <button
+            className="file-action"
+            aria-label="Importuj JSON"
+            onClick={() => file.current?.click()}
+            title="Importuj JSON"
+          >
             <UploadSimple />
             <span>Importuj</span>
           </button>
-          <button onClick={exportFile} title="Eksportuj JSON">
+          <button
+            className="file-action"
+            aria-label="Eksportuj JSON"
+            onClick={exportFile}
+            title="Eksportuj JSON"
+          >
             <DownloadSimple />
             <span>Eksportuj</span>
           </button>
           <span className="header-divider" />
-          <button className="vlan-button" onClick={() => setVlansOpen('all')}>
+          <button
+            className="diagnostics-button"
+            aria-label="Diagnostyka"
+            onClick={() => setDiagnosticsOpen(true)}
+            title="Sprawdź porty, VLAN-y, adresację i PoE"
+          >
+            <Info />
+            <span>Diagnostyka</span>
+          </button>
+          <button
+            className="vlan-button"
+            aria-label="Sieci i VLAN-y"
+            onClick={() => setVlansOpen('all')}
+          >
             <SquaresFour />
             <span>Sieci i VLAN-y</span>
             <b>{net.vlans.length}</b>
           </button>
           <button
+            aria-label={simulation ? 'Projektowanie' : 'Symulacja'}
             className={simulation ? 'simulation-active' : 'primary'}
             onClick={() => {
               if (simulation) {
@@ -402,7 +482,7 @@ export function App() {
           network={net}
           selected={selected}
           select={setSelected}
-          edit={setEditing}
+          edit={openEditor}
           add={add}
           editVlans={(id) => setVlansOpen(id ?? 'all')}
         />
@@ -448,6 +528,8 @@ export function App() {
             selected={selected}
             select={setSelected}
             edit={openEditor}
+            editPorts={(id) => openEditor(id, 'ports')}
+            editInterfaces={(id) => openEditor(id, 'interfaces')}
             moveGroup={(id, delta) => commit(moveNetworkGroup(net, id, delta))}
             move={(id, point) =>
               commit({
@@ -459,6 +541,12 @@ export function App() {
             remove={() => remove()}
             connect={connect}
             connection={connection}
+            connectionLabel={
+              connection
+                ? `${net.devices.find((d) => d.id === connection)?.name}${connectionPort ? ` / ${net.devices.find((d) => d.id === connection)?.ports?.find((p) => p.id === connectionPort)?.name}` : ''}`
+                : undefined
+            }
+            cancelConnection={cancelConnection}
             tool={tool}
             setTool={changeTool}
             grid={grid}
@@ -485,6 +573,7 @@ export function App() {
             probe={probe}
             setProbe={setProbe}
             sim={sim}
+            editInterfaces={(id) => openEditor(id, 'interfaces')}
             close={() => {
               sim.stop();
               setSimulation(false);
@@ -492,12 +581,38 @@ export function App() {
           />
         )}
       </div>
+      {portPicker &&
+        pickingDevice &&
+        (!portPicker.target || (connectionDevice && connectionSocket)) && (
+          <PortConnectionDialog
+            key={`${portPicker.deviceId}:${portPicker.target}`}
+            network={net}
+            device={pickingDevice}
+            source={
+              portPicker.target && connectionDevice && connectionSocket
+                ? { device: connectionDevice, port: connectionSocket }
+                : undefined
+            }
+            choose={chooseConnectionPort}
+            error={connectionError}
+            close={() => {
+              if (portPicker.target) setPortPicker(null);
+              else cancelConnection();
+            }}
+            configure={() => {
+              const id = portPicker.deviceId;
+              cancelConnection();
+              openEditor(id, 'ports');
+            }}
+          />
+        )}
       {editDevice && (
         <DeviceDialog
-          key={editDevice.id}
+          key={`${editDevice.id}:${editingTab}`}
+          initialTab={editingTab}
           device={editDevice}
           network={net}
-          editRelated={setEditing}
+          editRelated={openEditor}
           addGuest={addGuest}
           close={() => setEditing(null)}
           save={(device, vlans) => {
@@ -519,8 +634,12 @@ export function App() {
           link={linkForEdit}
           network={net}
           close={() => setEditingLink(null)}
-          save={(link) => {
-            commit({ ...net, links: net.links.map((l) => (l.id === link.id ? link : l)) });
+          save={(link, devices) => {
+            commit({
+              ...net,
+              devices: devices || net.devices,
+              links: net.links.map((l) => (l.id === link.id ? link : l)),
+            });
             setEditingLink(null);
           }}
         />
@@ -536,6 +655,14 @@ export function App() {
           }}
         />
       )}
+      {diagnosticsOpen && (
+        <DiagnosticsDialog
+          network={net}
+          lastResult={sim.logs.find((l) => l.status === 'complete')?.result}
+          close={() => setDiagnosticsOpen(false)}
+          inspect={openEditor}
+        />
+      )}
       {help && <HelpDialog close={() => setHelp(false)} />}
       {context && (
         <ContextMenu target={context} close={() => setContext(null)}>
@@ -549,14 +676,13 @@ export function App() {
                     {d.name}
                     <small>{d.ip}</small>
                   </div>
-                  <MenuItem icon={<GearSix />} action={() => setEditing(d.id)}>
+                  <MenuItem icon={<GearSix />} action={() => openEditor(d.id)}>
                     Edytuj urządzenie <kbd>Enter</kbd>
                   </MenuItem>
                   <MenuItem
                     icon={<LinkSimple />}
                     action={() => {
-                      setTool('connect');
-                      setConnection(d.id);
+                      beginConnection(d.id);
                     }}
                   >
                     Połącz z urządzeniem

@@ -1,6 +1,6 @@
 # Audyt modelu urządzeń
 
-Przegląd: 2026-11-12. Sprawdzono wszystkie rodzaje z `Kind`, tworzenie urządzeń, topologię, adresowanie, DHCP, DNS, routing, ACL, NAT i dostępność usług. Wnioski dotyczą modelu aplikacji, a nie testów fizycznych urządzeń. Podstawę techniczną stanowią poniższe dokumenty producentów i RFC; wybór domyślnych usług i polityk pozostaje profilem aplikacji.
+Przegląd: 2026-11-12. Model rozszerzono następnie o [porty, interfejsy, media, PoE i diagnostykę](./PORTS_AND_DIAGNOSTICS.md). Sprawdzono wszystkie rodzaje z `Kind`, tworzenie urządzeń, topologię, adresowanie, DHCP, DNS, routing, ACL, NAT i dostępność usług. Wnioski dotyczą modelu aplikacji, a nie testów fizycznych urządzeń. Podstawę techniczną stanowią poniższe dokumenty producentów i RFC; wybór domyślnych usług i polityk pozostaje profilem aplikacji.
 
 ## Wyniki dla poszczególnych urządzeń
 
@@ -39,10 +39,10 @@ Dwa starsze scenariusze doprecyzowano: edycja podsieci sprawdza teraz rzeczywist
 
 ## Granice, które należy uwzględnić w projekcie
 
-- Automatyczny routing korzysta z logicznej topologii. Nie oznacza działania OSPF/BGP ani automatycznego powstawania tras w fizycznym sprzęcie. Do sprawdzania własnych tablic służy tryb statyczny. Następny skok jest wskazywany jako bezpośredni sąsiad na diagramie, bez rekurencyjnego rozwiązywania przez sieć tranzytową.
-- Jeden VLAN odpowiada jednej podsieci i jednemu wskazanemu urządzeniu bramy. Brakuje wielointerfejsowego hosta, osobnych masek i bram DHCP u każdego klienta, VRRP/HSRP, VRF oraz IPv6. Prefixy LAN obsługują /1–/30.
-- Konfiguracja access/trunk jest wspólna dla obu końców łącza. Nie ma osobnych native VLAN/PVID, błędów tagowania obu portów, tablic MAC/ARP, STP, LACP, MTU ani PoE. Pusta lista VLAN-ów zarządzalnego switcha oznacza brak dodatkowego ograniczenia poza konfiguracją łączy.
-- AP obsługuje jeden logiczny SSID i VLAN klientów. Łącza klientów są wskazywane ręcznie; SSID nie zestawia ich automatycznie. Brak wirtualnych switchy internal/private, SR-IOV i wielu vNIC w modelu VM.
+- Automatyczny routing korzysta z logicznej topologii. Nie oznacza działania OSPF/BGP ani automatycznego powstawania tras w fizycznym sprzęcie. Do sprawdzania własnych tablic służy tryb statyczny. Następny skok jest wskazywany jako sąsiad osiągalny w podłączonym L2 (również przez switch), bez rekurencyjnego rozwiązywania wielu tras do jego adresu.
+- Jeden VLAN odpowiada jednej podsieci i jednemu wskazanemu urządzeniu bramy. Hosty mają wiele interfejsów z osobnymi maskami, bramami i DHCP. Brakuje nadal VRRP/HSRP, VRF oraz IPv6. Prefiksy katalogu LAN obsługują /1–/30, a jawne interfejsy IP /1–/32.
+- Konfiguracja portów jest osobna na obu końcach, włącznie z native VLAN/PVID i tagowaniem. PoE ma model klasy/budżetu PSE/PD. Nie ma nadal tablic MAC/ARP, STP, LACP ani MTU. Pusta lista VLAN-ów zarządzalnego switcha oznacza brak dodatkowego ograniczenia poza konfiguracją łączy.
+- AP obsługuje jeden logiczny SSID i VLAN klientów. Łącza klientów są wskazywane ręcznie; SSID nie zestawia ich automatycznie. VM może mieć wiele vNIC. Brak nadal oddzielnych wirtualnych switchy internal/private i SR-IOV.
 - ACL routera i switcha L3 są bezstanowe; firewall oraz profil brzegu śledzą odpowiedź w obrębie jednego testu. Nie ma trwałego conntrack ani pełnego TCP, PAT z kolizjami portów, fragmentacji czy sesji równoległych. Pole WAN/LAN opisuje pochodzenie próby, nie konkretny interfejs wejściowy każdego urządzenia. Domyślne `deny` nowych urządzeń L3 jest świadomą polityką aplikacji, nie deklaracją fabrycznej konfiguracji każdego routera.
 - Presety usług serwera/VM/drukarki/kamery są edytowalnymi przykładami. Brak uruchomionych systemów, autoryzacji, TLS i rzeczywistych aplikacji. Wartości trzeba dostosować do dokumentacji konkretnego sprzętu.
 - DNS obejmuje rekordy A, bez rekursji, cache, TTL, delegacji, DNSSEC, EDNS i symulacji obcięcia odpowiedzi. DHCP nie obejmuje wymiany datagramów, wielu konkurujących serwerów, pełnego T2/rebinding, opcji wszystkich producentów ani trwałej bazy serwera poza projektem.

@@ -1,3 +1,4 @@
+import { prepareHardware } from '../model/ports';
 import { useEffect, useState } from 'react';
 import { createDemoNetwork } from '../examples/demoNetwork';
 import { reconcileDhcp } from '../model/dhcp';
@@ -12,9 +13,11 @@ const LEASE_REFRESH_MS = 15_000;
 
 function loadProject(): Network {
   try {
-    return reconcileDhcp(prepareInternet(parseNetwork(localStorage.getItem(STORAGE_KEY) || '')));
+    return reconcileDhcp(
+      prepareHardware(prepareInternet(parseNetwork(localStorage.getItem(STORAGE_KEY) || ''))),
+    );
   } catch {
-    return createDemoNetwork();
+    return reconcileDhcp(prepareHardware(createDemoNetwork()));
   }
 }
 
@@ -56,7 +59,7 @@ export function useProject(notify: (message: string) => void) {
   }, []);
 
   function commit(network: Network) {
-    const normalized = reconcileDhcp(prepareInternet(network));
+    const normalized = reconcileDhcp(prepareHardware(prepareInternet(network)));
     setState((current) => recordProject(current, normalized));
   }
   function restore(direction: 'undo' | 'redo') {

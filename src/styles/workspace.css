@@ -260,6 +260,7 @@ h3 {
   background: #edf0ff;
 }
 .workspace {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -476,6 +477,12 @@ h3 {
   padding: 10px 7px 20px;
   overflow: auto;
 }
+.layer-list > h3 {
+  margin: 10px 4px 6px;
+  color: #7a8699;
+  font-size: 10px;
+  font-weight: 550;
+}
 .layer-list > button {
   width: 100%;
   text-align: left;
@@ -660,6 +667,8 @@ h3 {
   white-space: nowrap;
 }
 .selection-actions {
+  max-width: calc(100% - 28px);
+  flex-wrap: wrap;
   position: absolute;
   left: 50%;
   top: 15px;
@@ -1561,8 +1570,20 @@ kbd {
   .project-name {
     width: 115px;
   }
-  .header-actions > button:not(.primary):not(.simulation-active):not(.vlan-button) > span {
+  .header-actions > .file-action > span {
     display: none;
+  }
+  .topbar {
+    height: auto;
+    min-height: 53px;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+  .header-actions {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
   }
   .header-actions > .header-divider {
     margin: 0 3px;
@@ -1592,7 +1613,7 @@ kbd {
 }
 @media (max-width: 680px) {
   .topbar {
-    height: 49px;
+    height: auto;
     gap: 8px;
     padding: 0 8px;
   }
@@ -1614,9 +1635,6 @@ kbd {
   .header-actions > button {
     padding: 7px 6px;
   }
-  .header-actions > .vlan-button > span {
-    display: none;
-  }
   .header-actions > .vlan-button {
     gap: 4px;
   }
@@ -1633,7 +1651,7 @@ kbd {
     width: 12px;
   }
   .header-actions > .icon-button {
-    display: none;
+    display: inline-flex;
   }
   .library {
     width: 65px;
@@ -2257,12 +2275,44 @@ kbd {
 
 /* Device capabilities use the same edit dialog rather than another persistent panel. */
 .config-tabs {
-  overflow-x: auto;
-  gap: 22px;
+  flex-wrap: wrap;
+  gap: 0 22px;
 }
 .config-tabs button {
   white-space: nowrap;
   flex-shrink: 0;
+}
+.device-config-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.device-config-shortcuts > button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  white-space: normal;
+  padding: 12px;
+  gap: 5px;
+}
+.device-config-shortcuts strong {
+  font-size: 12px;
+}
+.device-config-shortcuts span {
+  font-size: 10px;
+  line-height: 1.5;
+}
+.interface-picker {
+  margin-bottom: 15px;
+}
+.interface-picker .field {
+  margin-bottom: 6px;
+}
+.interface-picker > button {
+  font-size: 10px;
+  padding: 6px 9px;
 }
 .acl-default {
   display: flex;
@@ -2710,9 +2760,9 @@ kbd {
 }
 @media (max-width: 680px) {
   .simulation-sidebar {
-    position: fixed;
+    position: absolute;
     right: 0;
-    top: 49px;
+    top: 0;
     bottom: 0;
     width: min(302px, calc(100vw - 64px));
     z-index: 8;
@@ -2758,7 +2808,7 @@ kbd {
     grid-column: 1;
   }
   .config-tabs {
-    gap: 19px;
+    gap: 0 19px;
   }
   .config-tabs button {
     font-size: 10px;
@@ -2770,4 +2820,352 @@ kbd {
     font-size: 9px;
     padding: 7px;
   }
+}
+
+/* Physical ports, adapters, and actionable project diagnostics. */
+.ports-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+  margin-bottom: 20px;
+}
+.port-fields .field {
+  margin-bottom: 12px;
+}
+.port-fields .checkbox-label {
+  margin-bottom: 10px;
+}
+.inline-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 13px;
+}
+.interface-card {
+  margin: 18px 0;
+  padding: 16px;
+  border: 1px solid #dfe6f1;
+  border-radius: 8px;
+}
+.interface-card legend {
+  font-size: 12px;
+  font-weight: 550;
+  color: #657791;
+  padding: 0 6px;
+}
+.link-endpoints {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  margin-top: 20px;
+}
+.link-endpoint {
+  min-width: 0;
+  border: 1px solid #e1e7f1;
+  border-radius: 8px;
+  padding: 15px;
+}
+.link-endpoint h3 {
+  margin: 0 0 16px;
+}
+.link-status {
+  padding: 12px 15px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.link-status.up {
+  background: #edf6f1;
+  color: #54846e;
+}
+.link-status.down {
+  background: #fbefed;
+  color: #ad6d5f;
+}
+.link-status p {
+  margin: 5px 0;
+}
+.legacy-link-settings {
+  margin-top: 18px;
+  color: #75869e;
+  font-size: 11px;
+}
+.legacy-link-settings summary {
+  cursor: pointer;
+  padding: 9px 0;
+}
+.diagnostic-summary {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.diagnostic-count {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 6px;
+  padding: 16px;
+  background: #f4f7fb;
+  border: 1px solid #e0e7f2;
+}
+.diagnostic-count strong {
+  font-size: 22px;
+}
+.diagnostic-count.error {
+  color: #b57060;
+}
+.diagnostic-count.warning {
+  color: #a18b54;
+}
+.diagnostic-count.info {
+  color: #7188aa;
+}
+.diagnostic-count.active {
+  border-color: currentColor;
+}
+.diagnostic-list {
+  display: grid;
+  gap: 10px;
+}
+.diagnostic-item {
+  padding: 15px;
+  border: 1px solid #e5eaf2;
+  border-left: 3px solid #9eafca;
+  border-radius: 7px;
+}
+.diagnostic-item.error {
+  border-left-color: #ce8e7d;
+}
+.diagnostic-item.warning {
+  border-left-color: #c5b07a;
+}
+.diagnostic-item h3 {
+  margin: 0 0 7px;
+  font-size: 12px;
+}
+.diagnostic-item p,
+.diagnostic-trace p,
+.diagnostic-poe p {
+  font-size: 11px;
+  line-height: 1.7;
+  color: #75859b;
+  overflow-wrap: anywhere;
+}
+.diagnostic-trace {
+  padding: 15px;
+  margin-bottom: 20px;
+  background: #f7f9fc;
+  border-radius: 8px;
+}
+.diagnostic-trace summary {
+  cursor: pointer;
+  font-size: 11px;
+}
+.diagnostic-trace li {
+  margin: 7px 0;
+  font-size: 10px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 680px) {
+  .ports-layout,
+  .link-endpoints {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Front panels share the same socket map in the editor and connection flow. */
+.port-panel {
+  background: #e9edf2;
+  border: 1px solid #cbd3de;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 18px;
+  min-width: 0;
+  box-shadow: inset 0 1px 0 #fff;
+}
+.port-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 13px;
+  color: #445268;
+  font-size: 12px;
+}
+.port-panel-heading > span {
+  font-size: 10px;
+  color: #6c7b8e;
+}
+.port-bank + .port-bank {
+  margin-top: 16px;
+}
+.port-bank h4 {
+  font-size: 9px;
+  color: #6a798e;
+  margin: 0 0 8px;
+  letter-spacing: 0.6px;
+}
+.port-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(59px, 1fr));
+  gap: 7px;
+}
+.port-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 4px 7px;
+  border: 1px solid #c5cdd8;
+  border-radius: 5px;
+  background: #f8fafc;
+  min-width: 0;
+  color: #526176;
+}
+.port-slot.selected {
+  border-color: #6575ca;
+  outline: 2px solid #6575ca;
+  outline-offset: 1px;
+  background: #f2f4ff;
+}
+.port-slot:disabled {
+  opacity: 1;
+  cursor: not-allowed;
+  color: #7a8492;
+}
+.port-slot:disabled:hover {
+  background: #f8fafc;
+}
+.port-slot:focus-visible {
+  outline: 3px solid #6575ca;
+  outline-offset: 2px;
+}
+.port-slot > strong {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.port-slot > small {
+  font-size: 8px;
+  line-height: 1.3;
+}
+.port-jack {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  width: 38px;
+  height: 29px;
+  background: #858e9c;
+  border: 3px solid #626d7c;
+  border-radius: 3px;
+  box-shadow: inset 0 2px 5px #0004;
+}
+.port-jack.rj45 {
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 75% 78%, 75% 100%, 25% 100%, 25% 78%, 0 78%);
+}
+.port-jack i {
+  display: block;
+  margin-top: 2px;
+  width: 2px;
+  height: 7px;
+  background: #d6bf85;
+}
+.port-slot.up .port-jack {
+  background: #258b61;
+  border-color: #326b53;
+}
+.port-slot.disabled .port-jack {
+  background: #15191f;
+  border-color: #323843;
+}
+.port-slot.down .port-jack {
+  border-style: dashed;
+}
+.port-jack.sfp,
+.port-jack.sfp\+ {
+  height: 23px;
+  margin: 3px 0;
+  border-radius: 1px;
+}
+.port-jack.wifi {
+  border-radius: 50% 50% 5px 5px;
+}
+.port-jack.virtual {
+  border-style: dashed;
+}
+.port-jack:not(.rj45) i {
+  display: none;
+}
+.port-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 15px;
+  margin-top: 16px;
+  font-size: 9px;
+  color: #67768a;
+}
+.port-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.port-legend i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.port-legend .up {
+  background: #258b61;
+}
+.port-legend .free {
+  background: #858e9c;
+}
+.port-legend .disabled {
+  background: #15191f;
+}
+.port-panel-empty {
+  font-size: 11px;
+  padding: 15px 0;
+}
+.connection-preview {
+  margin-top: 20px;
+}
+.connection-preview h3 {
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+.connection-instruction {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 28px);
+  white-space: normal;
+}
+.connection-instruction > button {
+  padding: 4px 7px;
+  font-size: 10px;
+  color: #5868b5;
+  background: white;
+  flex-shrink: 0;
+}
+@media (max-width: 680px) {
+  .port-panel {
+    padding: 12px;
+  }
+  .port-grid {
+    grid-template-columns: repeat(auto-fill, minmax(59px, 1fr));
+  }
+  .connection-instruction {
+    font-size: 9px;
+  }
+  .dialog-footer:has(button) {
+    flex-wrap: wrap;
+  }
+}
+
+.connection-error {
+  padding: 0 25px 16px;
 }

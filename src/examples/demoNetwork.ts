@@ -1,3 +1,4 @@
+import { makePort, prepareHardware } from '../model/ports';
 import { defaultServices } from '../devices/deviceCatalog';
 import { reconcileDhcp } from '../model/dhcp';
 import { defaultInternet } from '../model/internetModel';
@@ -238,6 +239,12 @@ export function createDemoNetwork(): Network {
       {
         ...host('demo-guest-ap', 'accesspoint', 'AP · goście', '192.168.50.2', 50, 280, 1050),
         ssid: 'Firma-Guest',
+        // This AP has a second wired LAN socket for the local guest DNS server.
+        ports: [
+          { ...makePort('eth0', 'rj45', 50), mode: 'auto' },
+          { ...makePort('eth1', 'rj45', 50), mode: 'auto' },
+          { ...makePort('radio0', 'wifi', 50), mode: 'auto' },
+        ],
       },
       host('demo-guest-client', 'workstation', 'Laptop gościa · tylko Internet', '', 50, 440, 1145),
       {
@@ -283,7 +290,21 @@ export function createDemoNetwork(): Network {
     link('demo-guest-ap', 'demo-guest-client', 50),
     link('demo-guest-ap', 'demo-guest-dns', 50),
   );
-  return reconcileDhcp(network);
+  const prepared = prepareHardware(network);
+  const cameraSwitch = prepared.devices.find((d) => d.id === 'demo-camera-switch')!;
+  cameraSwitch.poeBudgetWatts = 60;
+  for (const camera of prepared.devices.filter((d) => d.kind === 'camera')) {
+    camera.powerSource = 'poe';
+    camera.powerWatts = 12;
+    const wire = prepared.links.find(
+      (l) =>
+        (l.a === camera.id && l.b === cameraSwitch.id) ||
+        (l.b === camera.id && l.a === cameraSwitch.id),
+    )!;
+    const portId = wire.a === cameraSwitch.id ? wire.aPortId : wire.bPortId;
+    cameraSwitch.ports!.find((p) => p.id === portId)!.poe = 'at';
+  }
+  return reconcileDhcp(prepared);
 }
 export const demoScenarios: {
   id: string;
