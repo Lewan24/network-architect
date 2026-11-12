@@ -1,3 +1,5 @@
+import { SettingsSection } from '../components/SettingsSection';
+import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Check, Info, Trash } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Modal } from '../components/Modal';
@@ -48,64 +50,79 @@ export function VlanEditorDialog({
         }}
       >
         <div className="dialog-body">
-          <div className="vlan-editor-heading">
-            <label className="field">
-              <span>Kolor obszaru</span>
-              <input
-                type="color"
-                value={draft.color}
-                onChange={(e) => patch({ color: e.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Nazwa sieci</span>
-              <input
-                autoFocus
-                required
-                maxLength={40}
-                value={draft.name}
-                onChange={(e) => patch({ name: e.target.value })}
-              />
-            </label>
-          </div>
-          <div className="vlan-fields">
-            <label className="field">
-              <span>ID VLAN</span>
-              <input
-                type="number"
-                min={1}
-                max={4094}
-                required
-                disabled={locked}
-                value={draft.id}
-                onChange={(e) => patch({ id: +e.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Podsieć CIDR</span>
-              <input
-                className="mono"
-                required
-                value={draft.cidr}
-                onChange={(e) => patch({ cidr: e.target.value })}
-              />
-            </label>
-            <label className="field">
-              <span>Brama IPv4 / SVI</span>
-              <input
-                className="mono"
-                required
-                value={draft.gateway}
-                onChange={(e) => patch({ gateway: e.target.value })}
-              />
-            </label>
-          </div>
-          {locked && (
-            <p className="field-hint">
-              ID i usuwanie są zablokowane, ponieważ sieć jest używana: {references.join(', ')}.
-              Pozostałe ustawienia można edytować.
-            </p>
-          )}
+          <SettingsSection
+            title="1. Nazwa i adresacja"
+            description="VLAN to domena L2. CIDR opisuje adresy IP — to dwie różne rzeczy."
+            tone="blue"
+          >
+            <div className="vlan-editor-heading">
+              <label className="field">
+                <span>Kolor obszaru</span>
+                <input
+                  type="color"
+                  value={draft.color}
+                  onChange={(e) => patch({ color: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>Nazwa sieci</span>
+                <input
+                  autoFocus
+                  required
+                  maxLength={40}
+                  value={draft.name}
+                  onChange={(e) => patch({ name: e.target.value })}
+                />
+              </label>
+            </div>
+            <div className="vlan-fields">
+              <label className="field">
+                <span>
+                  ID VLAN <FieldHelp topic="vlan" />
+                </span>
+                <input
+                  title={fieldTips.vlan}
+                  type="number"
+                  min={1}
+                  max={4094}
+                  required
+                  disabled={locked}
+                  value={draft.id}
+                  onChange={(e) => patch({ id: +e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>
+                  Podsieć CIDR <FieldHelp topic="cidr" />
+                </span>
+                <input
+                  title={fieldTips.cidr}
+                  className="mono"
+                  required
+                  value={draft.cidr}
+                  onChange={(e) => patch({ cidr: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>
+                  Brama IPv4 / SVI <FieldHelp topic="gateway" />
+                </span>
+                <input
+                  title={fieldTips.gateway}
+                  className="mono"
+                  required
+                  value={draft.gateway}
+                  onChange={(e) => patch({ gateway: e.target.value })}
+                />
+              </label>
+            </div>
+            {locked && (
+              <p className="field-hint">
+                ID i usuwanie są zablokowane, ponieważ sieć jest używana: {references.join(', ')}.
+                Pozostałe ustawienia można edytować.
+              </p>
+            )}
+          </SettingsSection>
           <ScopeFields vlan={draft} network={network} patch={patch} />
           <p className="info-line">
             <Info /> Zmiana podsieci wymaga zgodnych adresów statycznych. Nowe adresy automatyczne

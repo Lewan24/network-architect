@@ -1,7 +1,11 @@
+import { LearningCenter } from '../learning/LearningCenter';
+import { exampleFor, networkExamples } from '../examples/catalog';
+import type { ExampleSection } from '../examples/exampleTypes';
 import { createPortConnection } from '../model/portConnections';
 import { PortConnectionDialog } from '../editors/PortConnectionDialog';
 import { DiagnosticsDialog } from '../components/DiagnosticsDialog';
 import {
+  BookOpen,
   ArrowClockwise,
   ArrowCounterClockwise,
   ArrowsOutSimple,
@@ -64,6 +68,8 @@ export function App() {
   const [editingTab, setEditingTab] = useState<DeviceTab>('general');
   const [vlansOpen, setVlansOpen] = useState<number | 'all' | null>(null);
   const [help, setHelp] = useState(false);
+  const [learning, setLearning] = useState(false);
+  const currentExample = exampleFor(net);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [context, setContext] = useState<ContextTarget | null>(null);
   const [grid, setGrid] = useState(true);
@@ -118,6 +124,37 @@ export function App() {
       checkReply: true,
     });
     requestAnimationFrame(() => requestAnimationFrame(() => canvas.current?.fit()));
+  }
+  function loadLearning(id: string, scenarioId?: string) {
+    const example = networkExamples.find((e) => e.id === id);
+    if (!example) return;
+    replaceProject(example.create());
+    setLearning(false);
+    const scenario = example.scenarios.find((s) => s.id === scenarioId) || example.scenarios[0];
+    if (scenario) {
+      setProbe({ ...scenario.probe });
+      setSimulation(true);
+    }
+    notify('Wczytano ćwiczenie. Wyślij przygotowany pakiet; zmianę projektu można cofnąć.');
+  }
+  function locateLearning(id: string, section: ExampleSection) {
+    const example = networkExamples.find((e) => e.id === id);
+    if (!example) return;
+    if (currentExample?.id === id) {
+      const exists = section.target.startsWith('zone:')
+        ? net.vlans.some((v) => v.id === Number(section.target.slice(5)))
+        : net.devices.some((d) => d.id === section.target);
+      if (!exists) {
+        notify(
+          'Ten element został usunięty. Wczytaj przykład ponownie, aby obejrzeć oryginalną konfigurację.',
+        );
+        return;
+      }
+    } else replaceProject(example.create());
+    setLearning(false);
+    setSelected(section.target);
+    openEditor(section.target, section.tab);
+    requestAnimationFrame(() => requestAnimationFrame(() => canvas.current?.focus(section.target)));
   }
   function undo() {
     if (!past.length) return;
@@ -465,6 +502,14 @@ export function App() {
             <Play weight="fill" />
             <span>{simulation ? 'Projektowanie' : 'Symulacja'}</span>
           </button>
+          <button
+            className="learning-button"
+            aria-label="Poradnik"
+            onClick={() => setLearning(true)}
+          >
+            <BookOpen />
+            <span>Poradnik</span>
+          </button>
           <button className="icon-button" aria-label="Pomoc" onClick={() => setHelp(true)}>
             <Question />
           </button>
@@ -522,6 +567,21 @@ export function App() {
               </button>
             </div>
           </div>
+          {currentExample && (
+            <div
+              className={`project-learning-banner ${currentExample.intentionalProblems ? 'intentional' : ''}`}
+            >
+              <div>
+                <strong>
+                  {currentExample.intentionalProblems
+                    ? 'Celowo błędny projekt — sprawdź niepożądany dostęp'
+                    : `${currentExample.category} · ${currentExample.level}`}
+                </strong>
+                <span>{currentExample.description}</span>
+              </div>
+              <button onClick={() => setLearning(true)}>Omówienie i lekcje</button>
+            </div>
+          )}
           <NetworkCanvas
             ref={canvas}
             network={net}
@@ -663,7 +723,23 @@ export function App() {
           inspect={openEditor}
         />
       )}
-      {help && <HelpDialog close={() => setHelp(false)} />}
+      {help && (
+        <HelpDialog
+          close={() => setHelp(false)}
+          learn={() => {
+            setHelp(false);
+            setLearning(true);
+          }}
+        />
+      )}
+      {learning && (
+        <LearningCenter
+          close={() => setLearning(false)}
+          load={loadLearning}
+          locate={locateLearning}
+          currentId={currentExample?.id}
+        />
+      )}
       {context && (
         <ContextMenu target={context} close={() => setContext(null)}>
           {context.type === 'device' ? (

@@ -1,3 +1,4 @@
+import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { ArrowDown, ArrowUp, Info, Plus, Trash } from '@phosphor-icons/react';
 import { AclAddressPicker } from './AclAddressPicker';
 import type { Device, Network, Rule } from '../model/networkTypes';
@@ -52,11 +53,14 @@ export function AclEditor({
       </div>
       <label className="acl-default">
         <span>
-          <strong>Default ACL rule</strong>
+          <strong>
+            Domyślna reguła ACL <FieldHelp topic="acl" />
+          </strong>
           <small>Dla ruchu, który nie pasuje do żadnej reguły.</small>
         </span>
         <select
           aria-label="Domyślna reguła ACL"
+          title={fieldTips.acl}
           className={(d.defaultAcl || 'deny') === 'deny' ? 'deny-select' : 'allow-select'}
           value={d.defaultAcl || 'deny'}
           onChange={(e) => patch({ defaultAcl: e.target.value as Device['defaultAcl'] })}
@@ -65,100 +69,120 @@ export function AclEditor({
           <option value="deny">Deny any — blokuj</option>
         </select>
       </label>
-      <div className="rules-scroll">
-        <div className="rules-grid rules-labels">
-          <span>#</span>
-          <span>DZIAŁANIE</span>
-          <span>PROTOKÓŁ</span>
-          <span>PORT</span>
-          <span>ŹRÓDŁO / SIEĆ</span>
-          <span>CEL / SIEĆ</span>
-          <span>POCHODZENIE</span>
-          <span />
-        </div>
+      <div className="acl-rule-list">
         {d.rules.map((r, i) => (
-          <div className="rules-grid" key={r.id}>
-            <span className="rule-number">{i + 1}</span>
-            <select
-              aria-label={`ACL ${i + 1}: działanie`}
-              className={r.action === 'deny' ? 'deny-select' : 'allow-select'}
-              value={r.action}
-              onChange={(e) => update(r.id, { action: e.target.value as Rule['action'] })}
-            >
-              <option value="allow">Permit</option>
-              <option value="deny">Deny</option>
-            </select>
-            <select
-              aria-label={`ACL ${i + 1}: protokół`}
-              value={r.protocol}
-              onChange={(e) =>
-                update(r.id, {
-                  protocol: e.target.value as Rule['protocol'],
-                  ...(e.target.value === 'ICMP' ? { port: '*' } : {}),
-                })
-              }
-            >
-              {['ANY', 'ICMP', 'TCP', 'UDP'].map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
-            <input
-              aria-label={`ACL ${i + 1}: port`}
-              value={r.port}
-              disabled={r.protocol === 'ICMP'}
-              onChange={(e) => update(r.id, { port: e.target.value })}
-            />
-            <AclAddressPicker
-              network={network}
-              label={`ACL ${i + 1}: źródło`}
-              value={r.source}
-              change={(source) => update(r.id, { source })}
-            />
-            <AclAddressPicker
-              network={network}
-              label={`ACL ${i + 1}: cel`}
-              value={r.destination}
-              change={(destination) => update(r.id, { destination })}
-            />
-            <select
-              aria-label="Pochodzenie ruchu"
-              value={r.ingress || 'any'}
-              onChange={(e) => update(r.id, { ingress: e.target.value as Rule['ingress'] })}
-            >
-              <option value="any">Dowolne</option>
-              <option value="wan">Z internetu</option>
-              <option value="lan">Z LAN</option>
-            </select>
-            <div className="rule-actions">
-              <button
-                type="button"
-                disabled={!i}
-                aria-label="Reguła wyżej"
-                onClick={() => move(i, -1)}
-              >
-                <ArrowUp />
-              </button>
-              <button
-                type="button"
-                disabled={i === d.rules.length - 1}
-                aria-label="Reguła niżej"
-                onClick={() => move(i, 1)}
-              >
-                <ArrowDown />
-              </button>
-              <button
-                type="button"
-                aria-label="Usuń regułę ACL"
-                onClick={() => patch({ rules: d.rules.filter((x) => x.id !== r.id) })}
-              >
-                <Trash />
-              </button>
+          <article className={`acl-rule-card ${r.action}`} key={r.id}>
+            <header>
+              <div>
+                <strong>
+                  Reguła {i + 1} · {r.action === 'allow' ? 'Zezwól' : 'Blokuj'}
+                </strong>
+                <small>{r.id}</small>
+              </div>
+              <div className="rule-actions">
+                <button
+                  type="button"
+                  disabled={!i}
+                  aria-label="Reguła wyżej"
+                  onClick={() => move(i, -1)}
+                >
+                  <ArrowUp />
+                </button>
+                <button
+                  type="button"
+                  disabled={i === d.rules.length - 1}
+                  aria-label="Reguła niżej"
+                  onClick={() => move(i, 1)}
+                >
+                  <ArrowDown />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Usuń regułę ACL"
+                  onClick={() => patch({ rules: d.rules.filter((x) => x.id !== r.id) })}
+                >
+                  <Trash />
+                </button>
+              </div>
+            </header>
+            <div className="acl-card-fields">
+              <label className="field">
+                <span>Działanie</span>
+                <select
+                  aria-label={`ACL ${i + 1}: działanie`}
+                  className={r.action === 'deny' ? 'deny-select' : 'allow-select'}
+                  value={r.action}
+                  onChange={(e) => update(r.id, { action: e.target.value as Rule['action'] })}
+                >
+                  <option value="allow">Permit — zezwól</option>
+                  <option value="deny">Deny — blokuj</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>Protokół</span>
+                <select
+                  aria-label={`ACL ${i + 1}: protokół`}
+                  value={r.protocol}
+                  onChange={(e) =>
+                    update(r.id, {
+                      protocol: e.target.value as Rule['protocol'],
+                      ...(e.target.value === 'ICMP' ? { port: '*' } : {}),
+                    })
+                  }
+                >
+                  {['ANY', 'ICMP', 'TCP', 'UDP'].map((v) => (
+                    <option key={v}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>
+                  Port docelowy <FieldHelp topic="aclPort" />
+                </span>
+                <input
+                  title={fieldTips.aclPort}
+                  aria-label={`ACL ${i + 1}: port`}
+                  value={r.port}
+                  disabled={r.protocol === 'ICMP'}
+                  onChange={(e) => update(r.id, { port: e.target.value })}
+                />
+              </label>
+              <div className="field">
+                <span>Źródło / sieć</span>
+                <AclAddressPicker
+                  network={network}
+                  label={`ACL ${i + 1}: źródło`}
+                  value={r.source}
+                  change={(source) => update(r.id, { source })}
+                />
+              </div>
+              <div className="field">
+                <span>Cel / sieć</span>
+                <AclAddressPicker
+                  network={network}
+                  label={`ACL ${i + 1}: cel`}
+                  value={r.destination}
+                  change={(destination) => update(r.id, { destination })}
+                />
+              </div>
+              <label className="field">
+                <span>Pochodzenie testu</span>
+                <select
+                  aria-label={`ACL ${i + 1}: pochodzenie ruchu`}
+                  value={r.ingress || 'any'}
+                  onChange={(e) => update(r.id, { ingress: e.target.value as Rule['ingress'] })}
+                >
+                  <option value="any">Dowolne</option>
+                  <option value="wan">Z internetu</option>
+                  <option value="lan">Z LAN</option>
+                </select>
+              </label>
             </div>
-          </div>
+          </article>
         ))}
       </div>
       {!d.rules.length && (
-        <p className="empty-inline">Brak reguł szczegółowych. Decyduje Default ACL rule.</p>
+        <p className="empty-inline">Brak reguł szczegółowych. Decyduje domyślna reguła ACL.</p>
       )}
       <p className="info-line">
         <Info />* = dowolny adres lub port. Dla ICMP port jest pomijany. Firewall dopuszcza

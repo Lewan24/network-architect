@@ -1,3 +1,4 @@
+import { SettingsSection } from '../components/SettingsSection';
 import { InterfacesEditor } from './InterfacesEditor';
 import { PortsEditor } from './PortsEditor';
 import { supportsInterfaces } from '../model/interfaces';
@@ -234,291 +235,304 @@ export function DeviceDialog({
                   </label>
                 </div>
                 <div className="device-fields">
-                  <label className="field">
-                    <span>Nazwa urządzenia</span>
-                    <input
-                      autoFocus
-                      maxLength={40}
-                      value={draft.name}
-                      onChange={(e) => patch({ name: e.target.value })}
-                    />
-                  </label>
-                  {['gateway', 'router', 'firewall'].includes(draft.kind) && (
-                    <>
+                  <SettingsSection
+                    title="Tożsamość i rola"
+                    description="Nazwa, typ urządzenia i funkcja w projekcie."
+                  >
+                    <label className="field">
+                      <span>Nazwa urządzenia</span>
+                      <input
+                        autoFocus
+                        maxLength={40}
+                        value={draft.name}
+                        onChange={(e) => patch({ name: e.target.value })}
+                      />
+                    </label>
+                    {['gateway', 'router', 'firewall'].includes(draft.kind) && (
+                      <>
+                        <label className="field">
+                          <span>Typ urządzenia L3</span>
+                          <select
+                            value={draft.kind}
+                            onChange={(e) =>
+                              patch({
+                                kind: e.target.value as Device['kind'],
+                                edgeRole: e.target.value === 'gateway' ? 'edge' : 'internal',
+                                ...(e.target.value === 'gateway' ? { outboundNat: true } : {}),
+                              })
+                            }
+                          >
+                            <option value="gateway">Router / firewall — wspólny brzeg WAN</option>
+                            <option value="router">Router L3</option>
+                            <option value="firewall">Firewall</option>
+                          </select>
+                        </label>
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={hasWan(draft)}
+                            onChange={(e) =>
+                              patch({ edgeRole: e.target.checked ? 'edge' : 'internal' })
+                            }
+                          />{' '}
+                          Urządzenie brzegowe WAN / NAT
+                        </label>
+                        {hasWan(draft) && (
+                          <label className="checkbox-label" style={{ marginTop: 10 }}>
+                            <input
+                              type="checkbox"
+                              checked={!!draft.outboundNat}
+                              onChange={(e) => patch({ outboundNat: e.target.checked })}
+                            />{' '}
+                            NAT wyjściowy LAN → publiczny WAN
+                          </label>
+                        )}
+                      </>
+                    )}
+                    {draft.kind.startsWith('switch') && (
                       <label className="field">
-                        <span>Typ urządzenia L3</span>
+                        <span>Typ przełącznika</span>
                         <select
                           value={draft.kind}
                           onChange={(e) =>
                             patch({
                               kind: e.target.value as Device['kind'],
-                              edgeRole: e.target.value === 'gateway' ? 'edge' : 'internal',
-                              ...(e.target.value === 'gateway' ? { outboundNat: true } : {}),
+                              ...(e.target.value !== 'switch-unmanaged' && !draft.ip
+                                ? { ipMode: draft.vlan ? 'auto' : 'static' }
+                                : {}),
                             })
                           }
                         >
-                          <option value="gateway">Router / firewall — wspólny brzeg WAN</option>
-                          <option value="router">Router L3</option>
-                          <option value="firewall">Firewall</option>
+                          <option value="switch">L2 zarządzalny · VLAN-y</option>
+                          <option value="switch-unmanaged">L2 niezarządzalny · jedna sieć</option>
+                          <option value="switch-l3">L3 zarządzalny · routing i ACL</option>
                         </select>
                       </label>
-                      <label className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          checked={hasWan(draft)}
-                          onChange={(e) =>
-                            patch({ edgeRole: e.target.checked ? 'edge' : 'internal' })
-                          }
-                        />{' '}
-                        Urządzenie brzegowe WAN / NAT
-                      </label>
-                      {hasWan(draft) && (
-                        <label className="checkbox-label" style={{ marginTop: 10 }}>
-                          <input
-                            type="checkbox"
-                            checked={!!draft.outboundNat}
-                            onChange={(e) => patch({ outboundNat: e.target.checked })}
-                          />{' '}
-                          NAT wyjściowy LAN → publiczny WAN
-                        </label>
-                      )}
-                    </>
-                  )}
-                  {draft.kind.startsWith('switch') && (
-                    <label className="field">
-                      <span>Typ przełącznika</span>
-                      <select
-                        value={draft.kind}
-                        onChange={(e) =>
-                          patch({
-                            kind: e.target.value as Device['kind'],
-                            ...(e.target.value !== 'switch-unmanaged' && !draft.ip
-                              ? { ipMode: draft.vlan ? 'auto' : 'static' }
-                              : {}),
-                          })
-                        }
-                      >
-                        <option value="switch">L2 zarządzalny · VLAN-y</option>
-                        <option value="switch-unmanaged">L2 niezarządzalny · jedna sieć</option>
-                        <option value="switch-l3">L3 zarządzalny · routing i ACL</option>
-                      </select>
-                    </label>
-                  )}
-                  {draft.kind === 'server' && (
-                    <>
-                      <label className="field">
-                        <span>Rola serwera</span>
-                        <select
-                          value={draft.serverRole || 'server'}
-                          onChange={(e) =>
-                            patch({ serverRole: e.target.value as Device['serverRole'] })
-                          }
-                        >
-                          <option value="server">Serwer aplikacji / usług</option>
-                          <option value="hypervisor">Hypervisor — host maszyn VM</option>
-                        </select>
-                      </label>
-                      {isHypervisor(draft) && (
+                    )}
+                    {draft.kind === 'server' && (
+                      <>
                         <label className="field">
-                          <span>Platforma wirtualizacji</span>
+                          <span>Rola serwera</span>
                           <select
-                            value={draft.hypervisorVendor || 'VMware ESXi'}
+                            value={draft.serverRole || 'server'}
                             onChange={(e) =>
-                              patch({
-                                hypervisorVendor: e.target.value as Device['hypervisorVendor'],
-                              })
+                              patch({ serverRole: e.target.value as Device['serverRole'] })
                             }
                           >
-                            {['VMware ESXi', 'Proxmox VE', 'Hyper-V', 'KVM'].map((v) => (
-                              <option key={v}>{v}</option>
-                            ))}
+                            <option value="server">Serwer aplikacji / usług</option>
+                            <option value="hypervisor">Hypervisor — host maszyn VM</option>
                           </select>
                         </label>
-                      )}
-                    </>
-                  )}
-                  {draft.kind === 'vm' && (
-                    <label className="field">
-                      <span>Host wirtualizacji</span>
-                      <select
-                        value={draft.hostId || ''}
-                        onChange={(e) => patch({ hostId: e.target.value })}
-                      >
-                        <option value="">Bez hosta — VM nie ma połączenia</option>
-                        {network.devices.filter(isHypervisor).map((d) => (
-                          <option value={d.id} key={d.id}>
-                            {d.name} · {d.hypervisorVendor || 'VMware ESXi'}
-                          </option>
-                        ))}
-                      </select>
-                      <small className="field-hint">
-                        Połączenie vNIC z hostem powstaje automatycznie. Host musi być aktywny, aby
-                        VM mogła komunikować się z siecią.
-                      </small>
-                    </label>
-                  )}
-                  <label className="field">
-                    <span>
-                      {unmanaged ? 'Sieć dostępu (bez tagowania)' : 'Sieć / VLAN zarządzania'}
-                    </span>
-                    <select
-                      value={draft.vlan}
-                      onChange={(e) =>
-                        patch({
-                          vlan: +e.target.value,
-                          ipMode: +e.target.value ? 'auto' : 'static',
-                        })
-                      }
-                    >
-                      <option value={0}>Bez VLAN-u · WAN / routing</option>
-                      {network.vlans.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.name} · VLAN {v.id} · {v.cidr}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {!unmanaged ? (
-                    <>
-                      <label className="checkbox-label static-check">
-                        <input
-                          type="checkbox"
-                          checked={draft.ipMode === 'static'}
-                          disabled={draft.kind === 'internet'}
-                          onChange={(e) => patch({ ipMode: e.target.checked ? 'static' : 'auto' })}
-                        />
-                        Własny statyczny adres IP
-                      </label>
-                      {draft.ipMode === 'static' ? (
-                        <label className="field">
-                          <span>Adres IPv4</span>
-                          <input
-                            className="mono"
-                            value={draft.ip}
-                            onChange={(e) => patch({ ip: e.target.value })}
-                          />
-                        </label>
-                      ) : (
-                        <div className="auto-address">
-                          <span>DHCP · adres klienta</span>
-                          <strong className="mono">{autoIp || 'Oczekuje na DHCP'}</strong>
-                          <small>{dhcp.message}</small>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="info-line">
-                      <Info />
-                      Ten switch przekazuje ramki L2 w jednej sieci dostępu. Nie ma adresu IP, ACL,
-                      konfiguracji trunków ani routingu.
-                    </p>
-                  )}
-                  {draft.kind !== 'internet' && !unmanaged && (
-                    <>
-                      <label className="checkbox-label" style={{ marginTop: 16 }}>
-                        <input
-                          type="checkbox"
-                          checked={draft.dnsServerIds === undefined}
-                          onChange={(e) =>
-                            patch({
-                              dnsServerIds: e.target.checked
-                                ? undefined
-                                : [
-                                    ...(draftVlans.find((v) => v.id === draft.vlan)?.dnsServerIds ||
-                                      []),
-                                  ],
-                            })
-                          }
-                        />{' '}
-                        DNS z ustawień sieci
-                      </label>
-                      {draft.dnsServerIds !== undefined && (
-                        <DnsResolvers
-                          network={configNetwork}
-                          value={draft.dnsServerIds}
-                          change={(dnsServerIds) => patch({ dnsServerIds })}
-                        />
-                      )}
-                    </>
-                  )}
-                  {draft.kind === 'accesspoint' && (
-                    <>
+                        {isHypervisor(draft) && (
+                          <label className="field">
+                            <span>Platforma wirtualizacji</span>
+                            <select
+                              value={draft.hypervisorVendor || 'VMware ESXi'}
+                              onChange={(e) =>
+                                patch({
+                                  hypervisorVendor: e.target.value as Device['hypervisorVendor'],
+                                })
+                              }
+                            >
+                              {['VMware ESXi', 'Proxmox VE', 'Hyper-V', 'KVM'].map((v) => (
+                                <option key={v}>{v}</option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                      </>
+                    )}
+                    {draft.kind === 'vm' && (
                       <label className="field">
-                        <span>SSID sieci Wi-Fi</span>
-                        <input
-                          maxLength={32}
-                          value={draft.ssid || ''}
-                          placeholder="Biuro Wi-Fi"
-                          onChange={(e) => patch({ ssid: e.target.value })}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>VLAN klientów SSID</span>
+                        <span>Host wirtualizacji</span>
                         <select
-                          value={draft.wifiVlan ?? ''}
-                          onChange={(e) =>
-                            patch({ wifiVlan: e.target.value ? +e.target.value : undefined })
-                          }
+                          value={draft.hostId || ''}
+                          onChange={(e) => patch({ hostId: e.target.value })}
                         >
-                          <option value="">Taki sam jak VLAN zarządzania</option>
-                          {draftVlans.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.name} · VLAN {v.id}
+                          <option value="">Bez hosta — VM nie ma połączenia</option>
+                          {network.devices.filter(isHypervisor).map((d) => (
+                            <option value={d.id} key={d.id}>
+                              {d.name} · {d.hypervisorVendor || 'VMware ESXi'}
                             </option>
                           ))}
                         </select>
                         <small className="field-hint">
-                          AP mostkuje klientów do tej sieci bez NAT. Przy innym VLAN-ie zarządzania
-                          uplink musi przenosić oba VLAN-y.
+                          Połączenie vNIC z hostem powstaje automatycznie. Host musi być aktywny,
+                          aby VM mogła komunikować się z siecią.
                         </small>
                       </label>
-                    </>
-                  )}
-                  {(draft.kind === 'switch' || draft.kind === 'switch-l3') && (
-                    <fieldset className="vlan-checks">
-                      <legend>
-                        {draft.kind === 'switch'
-                          ? 'VLAN-y przenoszone przez switch L2'
-                          : 'Obsługiwane VLAN-y'}
-                      </legend>
-                      {network.vlans.map((v) => (
-                        <label className="checkbox-label" key={v.id}>
+                    )}
+                  </SettingsSection>
+                  <SettingsSection
+                    title="Adresacja i dostęp do sieci"
+                    tone="green"
+                    description="VLAN, konfiguracja IP i DNS tego urządzenia. Porty fizyczne ustawiasz osobno."
+                  >
+                    <label className="field">
+                      <span>
+                        {unmanaged ? 'Sieć dostępu (bez tagowania)' : 'Sieć / VLAN zarządzania'}
+                      </span>
+                      <select
+                        value={draft.vlan}
+                        onChange={(e) =>
+                          patch({
+                            vlan: +e.target.value,
+                            ipMode: +e.target.value ? 'auto' : 'static',
+                          })
+                        }
+                      >
+                        <option value={0}>Bez VLAN-u · WAN / routing</option>
+                        {network.vlans.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name} · VLAN {v.id} · {v.cidr}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {!unmanaged ? (
+                      <>
+                        <label className="checkbox-label static-check">
                           <input
                             type="checkbox"
-                            checked={(draft.allowedVlans || []).includes(v.id)}
+                            checked={draft.ipMode === 'static'}
+                            disabled={draft.kind === 'internet'}
                             onChange={(e) =>
-                              patch({
-                                allowedVlans: e.target.checked
-                                  ? [...(draft.allowedVlans || []), v.id]
-                                  : (draft.allowedVlans || []).filter((id) => id !== v.id),
-                              })
+                              patch({ ipMode: e.target.checked ? 'static' : 'auto' })
                             }
                           />
-                          {v.name} <small>VLAN {v.id}</small>
+                          Własny statyczny adres IP
                         </label>
-                      ))}
-                      <p className="field-hint">
-                        {draft.kind === 'switch'
-                          ? 'Pusta lista: wszystkie VLAN-y projektu, zgodnie z portami access/trunk. VLAN zarządzania dotyczy tylko adresu IP switcha.'
-                          : 'L3 przełącza ruch w obrębie VLAN-u i routuje przez skonfigurowane interfejsy SVI. Pusta lista oznacza wszystkie VLAN-y projektu.'}
+                        {draft.ipMode === 'static' ? (
+                          <label className="field">
+                            <span>Adres IPv4</span>
+                            <input
+                              className="mono"
+                              value={draft.ip}
+                              onChange={(e) => patch({ ip: e.target.value })}
+                            />
+                          </label>
+                        ) : (
+                          <div className="auto-address">
+                            <span>DHCP · adres klienta</span>
+                            <strong className="mono">{autoIp || 'Oczekuje na DHCP'}</strong>
+                            <small>{dhcp.message}</small>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <p className="info-line">
+                        <Info />
+                        Ten switch przekazuje ramki L2 w jednej sieci dostępu. Nie ma adresu IP,
+                        ACL, konfiguracji trunków ani routingu.
                       </p>
-                    </fieldset>
-                  )}
-                  {hasWan(draft) && (
-                    <label className="field">
-                      <span>Publiczny adres WAN</span>
-                      <input
-                        className="mono"
-                        placeholder="203.0.113.10"
-                        value={draft.wanIp || ''}
-                        onChange={(e) => patch({ wanIp: e.target.value })}
-                      />
-                      <small className="field-hint">
-                        Adres wejściowy dla testów z internetu. Mapowania NAT mogą publikować
-                        również dodatkowe adresy.
-                      </small>
-                    </label>
-                  )}
+                    )}
+                    {draft.kind !== 'internet' && !unmanaged && (
+                      <>
+                        <label className="checkbox-label" style={{ marginTop: 16 }}>
+                          <input
+                            type="checkbox"
+                            checked={draft.dnsServerIds === undefined}
+                            onChange={(e) =>
+                              patch({
+                                dnsServerIds: e.target.checked
+                                  ? undefined
+                                  : [
+                                      ...(draftVlans.find((v) => v.id === draft.vlan)
+                                        ?.dnsServerIds || []),
+                                    ],
+                              })
+                            }
+                          />{' '}
+                          DNS z ustawień sieci
+                        </label>
+                        {draft.dnsServerIds !== undefined && (
+                          <DnsResolvers
+                            network={configNetwork}
+                            value={draft.dnsServerIds}
+                            change={(dnsServerIds) => patch({ dnsServerIds })}
+                          />
+                        )}
+                      </>
+                    )}
+                    {draft.kind === 'accesspoint' && (
+                      <>
+                        <label className="field">
+                          <span>SSID sieci Wi-Fi</span>
+                          <input
+                            maxLength={32}
+                            value={draft.ssid || ''}
+                            placeholder="Biuro Wi-Fi"
+                            onChange={(e) => patch({ ssid: e.target.value })}
+                          />
+                        </label>
+                        <label className="field">
+                          <span>VLAN klientów SSID</span>
+                          <select
+                            value={draft.wifiVlan ?? ''}
+                            onChange={(e) =>
+                              patch({ wifiVlan: e.target.value ? +e.target.value : undefined })
+                            }
+                          >
+                            <option value="">Taki sam jak VLAN zarządzania</option>
+                            {draftVlans.map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.name} · VLAN {v.id}
+                              </option>
+                            ))}
+                          </select>
+                          <small className="field-hint">
+                            AP mostkuje klientów do tej sieci bez NAT. Przy innym VLAN-ie
+                            zarządzania uplink musi przenosić oba VLAN-y.
+                          </small>
+                        </label>
+                      </>
+                    )}
+                    {(draft.kind === 'switch' || draft.kind === 'switch-l3') && (
+                      <fieldset className="vlan-checks">
+                        <legend>
+                          {draft.kind === 'switch'
+                            ? 'VLAN-y przenoszone przez switch L2'
+                            : 'Obsługiwane VLAN-y'}
+                        </legend>
+                        {network.vlans.map((v) => (
+                          <label className="checkbox-label" key={v.id}>
+                            <input
+                              type="checkbox"
+                              checked={(draft.allowedVlans || []).includes(v.id)}
+                              onChange={(e) =>
+                                patch({
+                                  allowedVlans: e.target.checked
+                                    ? [...(draft.allowedVlans || []), v.id]
+                                    : (draft.allowedVlans || []).filter((id) => id !== v.id),
+                                })
+                              }
+                            />
+                            {v.name} <small>VLAN {v.id}</small>
+                          </label>
+                        ))}
+                        <p className="field-hint">
+                          {draft.kind === 'switch'
+                            ? 'Pusta lista: wszystkie VLAN-y projektu, zgodnie z portami access/trunk. VLAN zarządzania dotyczy tylko adresu IP switcha.'
+                            : 'L3 przełącza ruch w obrębie VLAN-u i routuje przez skonfigurowane interfejsy SVI. Pusta lista oznacza wszystkie VLAN-y projektu.'}
+                        </p>
+                      </fieldset>
+                    )}
+                    {hasWan(draft) && (
+                      <label className="field">
+                        <span>Publiczny adres WAN</span>
+                        <input
+                          className="mono"
+                          placeholder="203.0.113.10"
+                          value={draft.wanIp || ''}
+                          onChange={(e) => patch({ wanIp: e.target.value })}
+                        />
+                        <small className="field-hint">
+                          Adres wejściowy dla testów z internetu. Mapowania NAT mogą publikować
+                          również dodatkowe adresy.
+                        </small>
+                      </label>
+                    )}
+                  </SettingsSection>
                 </div>
               </div>
             </>

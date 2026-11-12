@@ -8,7 +8,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
-import { demoScenarios } from '../examples/demoNetwork';
+import { exampleFor } from '../examples/catalog';
 import { internetTargets } from '../model/internetModel';
 import { supportsInterfaces } from '../model/interfaces';
 import { tracePath, validHostname, validIp } from '../model/network';
@@ -30,6 +30,23 @@ export function TrafficPanel({ network, probe, setProbe, sim, close, editInterfa
     if (network.devices.some((d) => d.id === probe.destination)) setMode('device');
     else if (validIp(probe.destination) || validHostname(probe.destination)) setMode('ip');
   }, [probe.destination, network.devices]);
+  const example = exampleFor(network);
+  const scenarios = example?.scenarios || [];
+  const [scenarioId, setScenarioId] = useState('');
+  useEffect(() => {
+    const initial = scenarios.find((s) =>
+      ['source', 'destination', 'protocol', 'port'].every(
+        (key) => s.probe[key as keyof Probe] === probe[key as keyof Probe],
+      ),
+    );
+    setScenarioId(initial?.id || '');
+  }, [network.exampleId]);
+  const selectedScenario = scenarios.find((s) => s.id === scenarioId);
+  const matchesScenario =
+    selectedScenario &&
+    ['source', 'destination', 'protocol', 'port'].every(
+      (key) => selectedScenario.probe[key as keyof Probe] === probe[key as keyof Probe],
+    );
   const active = sim.active;
   const pending = active?.status === 'pending';
   const devices = network.devices.filter((d) => d.kind !== 'switch-unmanaged');
@@ -78,14 +95,15 @@ export function TrafficPanel({ network, probe, setProbe, sim, close, editInterfa
         </button>
       </header>
       <div className="sim-panel-scroll">
-        {network.devices.some((d) => d.id === 'demo-docker') && (
+        {scenarios.length > 0 && (
           <label className="demo-scenario-picker field">
             <span>Gotowy scenariusz laboratorium</span>
             <select
               aria-label="Scenariusz przykładowej sieci"
-              value=""
+              value={scenarioId}
               onChange={(e) => {
-                const test = demoScenarios.find((p) => p.id === e.target.value);
+                setScenarioId(e.target.value);
+                const test = scenarios.find((p) => p.id === e.target.value);
                 if (test) {
                   setProbe({ ...test.probe });
                   setMode(
@@ -95,13 +113,29 @@ export function TrafficPanel({ network, probe, setProbe, sim, close, editInterfa
               }}
             >
               <option value="">Wybierz test…</option>
-              {demoScenarios.map((p) => (
+              {scenarios.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.label}
                 </option>
               ))}
             </select>
           </label>
+        )}
+        {matchesScenario && (
+          <p
+            className={`scenario-expectation ${selectedScenario.expected ? 'expected-pass' : 'expected-block'}`}
+          >
+            <strong>
+              Oczekiwany wynik:{' '}
+              {selectedScenario.expected ? 'połączenie działa' : 'brak połączenia / blokada'}
+            </strong>
+            <span>
+              {selectedScenario.why ||
+                (example?.intentionalProblems
+                  ? 'Porównaj wynik z założeniami: sukces może ujawnić lukę w projekcie.'
+                  : 'Wyślij pakiet i sprawdź również trasę odpowiedzi.')}
+            </span>
+          </p>
         )}
         <label className="sim-speed-control">
           <span>

@@ -1,3 +1,4 @@
+import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Plus, Trash } from '@phosphor-icons/react';
 import type { Device, DnsRecord, Network } from '../model/network';
 export function DnsEditor({
@@ -20,7 +21,7 @@ export function DnsEditor({
           <h3>Strefa DNS · rekordy A</h3>
           <p>
             Nazwy można wskazywać jako cel komunikacji. Zapytania muszą dotrzeć do tego serwera
-            przez UDP/53.
+            przez UDP/53 lub TCP/53.
           </p>
         </div>
         <button
@@ -41,8 +42,11 @@ export function DnsEditor({
       {records.map((r) => (
         <div className="dns-record-row" key={r.id}>
           <label className="field">
-            <span>Nazwa DNS</span>
+            <span>
+              Nazwa DNS <FieldHelp topic="dns" />
+            </span>
             <input
+              title={fieldTips.dns}
               value={r.name}
               placeholder="npm.lab.home.arpa"
               onChange={(e) => update(r.id, { name: e.target.value })}

@@ -10,7 +10,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "test:ui": "node scripts/check-ui.mjs"
+    "test:ui": "node scripts/check-ui.mjs",
+    "docs:guide": "node scripts/export-guide.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.7",

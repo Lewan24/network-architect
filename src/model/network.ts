@@ -488,6 +488,7 @@ export function parseNetwork(text: string): Network {
   if (
     !n ||
     typeof n.name !== 'string' ||
+    (n.exampleId !== undefined && (typeof n.exampleId !== 'string' || n.exampleId.length > 100)) ||
     !Array.isArray(n.devices) ||
     !Array.isArray(n.links) ||
     n.devices.length > 500 ||

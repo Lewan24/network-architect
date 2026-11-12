@@ -26,6 +26,14 @@ Nowe ustawienia są dostępne bez włączania trybu zaawansowanego:
 
 Test kontrolek w prawdziwej przeglądarce: `npx playwright install chromium`, następnie `npm run test:ui`. Szczegóły w [przewodniku po kodzie](docs/DEVELOPMENT.md#test-dostępności-interfejsu).
 
+## Nauka i projekty wzorcowe
+
+**Poradnik** na górnym pasku zawiera plan projektowania, praktyczne wskazówki ze źródłami i sześć par małych laboratoriów: VLAN, trunk, ACL, DHCP/DNS, NAT i PoE. Każda para pokazuje problem i poprawiony projekt, instrukcję, konkretną konfigurację oraz oczekiwany test pakietu. Wczytanie można cofnąć.
+
+W menu **Przykład** są też: mała firma, home lab z Proxmox i IoT, duża firma z DMZ i dwiema zaporami oraz celowo błędny antywzorzec. Projekty mają własne scenariusze symulacji. [Opis projektów](docs/EXAMPLE_PROJECTS.md) i [poradnik w Markdown](docs/NETWORK_GUIDE.md).
+
+Dialogi mają karty ustawień, oznaczenia kolorystyczne i czytelniejsze etykiety. Ikona pytajnika wyjaśnia pole i kiedy można je pominąć; działa po najechaniu, kliknięciu i z klawiatury. Najechanie na samo pole pokazuje również podpowiedź. Escape zamyka najpierw otwarte objaśnienie.
+
 ## Możliwości
 
 - **Interaktywne gniazda:** klikalny panel z nazwami i stanami portów (zielony: aktywny link, szary: wolny/brak linku, czarny: wyłączony). Łączenie urządzeń obejmuje wybór portu początkowego i docelowego oraz rodzaju i długości kabla. Zajęte i niezgodne gniazda są blokowane.
@@ -65,7 +73,7 @@ Projekty bez listy VLAN-ów są migrowane: podsieci są wyprowadzane z adresów 
 
 ## Gotowe laboratorium
 
-Otwórz menu **Przykład**, wybierz **Biuro, serwery i Wi-Fi**, następnie otwórz **Symulację** i wybierz scenariusz. Rejestr `networkExamples` w `src/examples/demoNetwork.ts` pozwala dodawać kolejne projekty do menu. Projekt zawiera 22 urządzenia: Internet → router brzegowy → firewall oraz VLAN 10 (administracja), 20 (serwery), 30 (CCTV), 40 (pracownicy LAN/Wi-Fi), 50 (Wi-Fi gości), 60 (drukarka) i 99 (tranzyt). Firewall zapewnia DHCP, routing i izolację kamer. Są DNS, Hyper-V z dwiema VM, NAS, NVR, dwie kamery DHCP/PoE oraz drukarka. [Topologia, polityki i scenariusze odbioru](docs/DEMO_NETWORK.md).
+Otwórz menu **Przykład**, wybierz **Biuro, serwery i Wi-Fi**, następnie otwórz **Symulację** i wybierz scenariusz. Rejestr `networkExamples` w `src/examples/catalog.ts` pozwala dodawać kolejne projekty do menu. Projekt zawiera 22 urządzenia: Internet → router brzegowy → firewall oraz VLAN 10 (administracja), 20 (serwery), 30 (CCTV), 40 (pracownicy LAN/Wi-Fi), 50 (Wi-Fi gości), 60 (drukarka) i 99 (tranzyt). Firewall zapewnia DHCP, routing i izolację kamer. Są DNS, Hyper-V z dwiema VM, NAS, NVR, dwie kamery DHCP/PoE oraz drukarka. [Topologia, polityki i scenariusze odbioru](docs/DEMO_NETWORK.md).
 
 AP `Firma-Staff`, laptop Wi-Fi i przewodowy laptop pracownika korzystają z VLAN 40. Mają dostęp do wskazanych usług aplikacji, NAS i NVR, drukowania oraz Internetu. Panel NPM, Hyper-V, panel drukarki i bezpośrednie kamery są dostępne dla administratora, a nie dla pracowników. AP `Firma-Guest`, laptop gościa i osobny DNS gościnny są w VLAN 50. Reguły firewalla blokują gościom wszystkie trzy prywatne zakresy IPv4 przed regułą pozwalającą na Internet. DNS gościnny nie udostępnia stref LAN; rekord demonstracyjny `internet.example` wskazuje obiekt Internet. Izolacja dotyczy dostępu do pozostałych sieci, a nie izolacji klientów między sobą wewnątrz jednego SSID. AP jest mostem modelowym, bez radiowej propagacji.
 

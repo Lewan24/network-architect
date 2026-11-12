@@ -1,3 +1,4 @@
+import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Plus, Trash } from '@phosphor-icons/react';
 import type { Device, Network, NetworkInterface } from '../model/networkTypes';
 import { primaryInterface } from '../model/interfaces';
@@ -113,8 +114,11 @@ export function InterfacesEditor({
             </label>
             <div className="scope-grid">
               <label className="field">
-                <span>VLAN interfejsu (ustaw też port)</span>
+                <span>
+                  VLAN interfejsu (ustaw też port) <FieldHelp topic="vlan" />
+                </span>
                 <select
+                  title={fieldTips.vlan}
                   value={n.vlan}
                   onChange={(e) =>
                     update(n.id, { vlan: +e.target.value, ip: '', lease: undefined })
@@ -158,8 +162,11 @@ export function InterfacesEditor({
                     />
                   </label>
                   <label className="field">
-                    <span>Prefiks maski</span>
+                    <span>
+                      Prefiks maski <FieldHelp topic="prefix" />
+                    </span>
                     <input
+                      title={fieldTips.prefix}
                       type="number"
                       min={1}
                       max={32}
@@ -169,8 +176,12 @@ export function InterfacesEditor({
                   </label>
                 </div>
                 <label className="field">
-                  <span>Brama domyślna tej karty — pusta dla sieci lokalnej</span>
+                  <span>
+                    Brama domyślna tej karty — pusta dla sieci lokalnej{' '}
+                    <FieldHelp topic="gateway" />
+                  </span>
                   <input
+                    title={fieldTips.gateway}
                     value={n.gateway}
                     placeholder="192.168.10.1"
                     onChange={(e) => update(n.id, { gateway: e.target.value })}
@@ -186,8 +197,11 @@ export function InterfacesEditor({
               </p>
             )}
             <label className="field">
-              <span>Metryka trasy — niższa wygrywa</span>
+              <span>
+                Metryka trasy — niższa wygrywa <FieldHelp topic="metric" />
+              </span>
               <input
+                title={fieldTips.metric}
                 type="number"
                 min={0}
                 max={65535}

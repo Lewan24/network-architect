@@ -1,3 +1,4 @@
+import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Plus, Trash } from '@phosphor-icons/react';
 import { defaultServices } from '../devices/deviceCatalog';
 import type { Device, Service } from '../model/networkTypes';
@@ -65,8 +66,11 @@ export function ServicesEditor({
             </select>
           </label>
           <label className="field">
-            <span>Port</span>
+            <span>
+              Port <FieldHelp topic="service" />
+            </span>
             <input
+              title={fieldTips.service}
               type="number"
               min={1}
               max={65535}

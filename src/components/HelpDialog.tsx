@@ -1,7 +1,7 @@
 import { Info } from '@phosphor-icons/react';
 import { Modal } from './Modal';
 
-export function HelpDialog({ close }: { close: () => void }) {
+export function HelpDialog({ close, learn }: { close: () => void; learn?: () => void }) {
   return (
     <Modal
       title="Twój warsztat projektowania sieci"
@@ -45,8 +45,8 @@ export function HelpDialog({ close }: { close: () => void }) {
           <dt>Reguły firewalla</dt>
           <dd>
             W dialogu firewalla wybierz zakładkę reguł. Pierwsze dopasowanie wygrywa. * oznacza
-            dowolną wartość. Dla braku dopasowania wybierz Default ACL rule: permit any lub deny
-            any.
+            dowolną wartość. Dla braku dopasowania wybierz „Domyślna reguła ACL”: permit any lub
+            deny any.
           </dd>
           <dt>Symulacja</dt>
           <dd>
@@ -61,6 +61,11 @@ export function HelpDialog({ close }: { close: () => void }) {
         </p>
       </div>
       <footer className="dialog-footer">
+        {learn && (
+          <button className="secondary" onClick={learn}>
+            Poradnik i laboratoria
+          </button>
+        )}
         <button className="primary" onClick={close}>
           Rozumiem
         </button>

@@ -1,3 +1,4 @@
+import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Info, Plus, Trash } from '@phosphor-icons/react';
 import { isRoutingDevice } from '../model/network';
 import type { Device, Network, StaticRoute } from '../model/networkTypes';
@@ -69,15 +70,21 @@ export function RoutingEditor({
         {routes.map((r, i) => (
           <div className="route-row" key={r.id}>
             <label className="field">
-              <span>Podsieć docelowa CIDR</span>
+              <span>
+                Podsieć docelowa CIDR <FieldHelp topic="route" />
+              </span>
               <input
+                title={fieldTips.route}
                 value={r.destination}
                 onChange={(e) => update(r.id, { destination: e.target.value })}
               />
             </label>
             <label className="field">
-              <span>Następny skok</span>
+              <span>
+                Następny skok <FieldHelp topic="nextHop" />
+              </span>
               <select
+                title={fieldTips.nextHop}
                 value={r.nextHopId}
                 onChange={(e) => update(r.id, { nextHopId: e.target.value })}
               >
@@ -90,8 +97,11 @@ export function RoutingEditor({
               </select>
             </label>
             <label className="field">
-              <span>Metryka</span>
+              <span>
+                Metryka <FieldHelp topic="metric" />
+              </span>
               <input
+                title={fieldTips.metric}
                 type="number"
                 min={0}
                 max={65535}

@@ -163,6 +163,8 @@ export type Link = {
 };
 
 export type Network = {
+  /** Example provenance; preserved through export and edits, never an authorization flag. */
+  exampleId?: string;
   name: string;
   devices: Device[];
   links: Link[];

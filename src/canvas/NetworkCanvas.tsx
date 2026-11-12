@@ -29,6 +29,7 @@ import {
 } from '../simulation/simulationTiming';
 export type CanvasHandle = {
   fit: () => void;
+  focus: (id: string) => void;
   center: () => Point;
 };
 export type ContextTarget = {
@@ -154,10 +155,20 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
     moved: boolean;
   } | null>(null);
   const spaceRef = useRef(false);
+  function focusObject(id: string) {
+    const link = topologyLinks(p.network).find((l) => l.id === id);
+    const points = id.startsWith('zone:')
+      ? p.network.devices.filter((d) => belongsToVlan(d, Number(id.slice(5))))
+      : p.network.devices.filter(
+          (d) => d.id === id || (link && (d.id === link.a || d.id === link.b)),
+        );
+    if (points.length) setCamera(fitCamera(points, size.width, size.height));
+  }
   useImperativeHandle(
     ref,
     () => ({
       fit: () => setCamera(fitCamera(p.network.devices, size.width, size.height)),
+      focus: focusObject,
       center: () => toWorld({ x: size.width / 2, y: size.height / 2 }, camera),
     }),
     [p.network.devices, size, camera],
@@ -727,6 +738,9 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
           </span>
           <button onClick={() => p.edit(p.selected!)}>
             <GearSix /> Edytuj
+          </button>
+          <button onClick={() => focusObject(p.selected!)} aria-label="Przybliż zaznaczony obiekt">
+            <ArrowsOutSimple /> Przybliż
           </button>
           {p.network.devices.some((d) => d.id === p.selected) && (
             <button onClick={() => p.connect(p.selected!)}>

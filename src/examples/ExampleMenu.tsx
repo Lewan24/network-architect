@@ -1,6 +1,6 @@
 import { CaretDown, Network as NetworkIcon } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import { networkExamples } from './demoNetwork';
+import { networkExamples } from './catalog';
 import type { Network } from '../model/network';
 export function ExampleMenu({ load }: { load: (network: Network) => void }) {
   const [open, setOpen] = useState(false);
@@ -48,18 +48,34 @@ export function ExampleMenu({ load }: { load: (network: Network) => void }) {
       {open && (
         <div id="example-projects" className="example-menu-panel">
           <p>Przykładowe projekty</p>
-          {networkExamples.map((example) => (
-            <button
-              key={example.id}
-              onClick={() => {
-                load(example.create());
-                setOpen(false);
-                trigger.current?.focus();
-              }}
-            >
-              <strong>{example.name}</strong>
-              <small>{example.description}</small>
-            </button>
+          {(['Projekt', 'Antywzorzec', 'Ćwiczenie'] as const).map((category) => (
+            <details className="example-category" key={category} open={category !== 'Ćwiczenie'}>
+              <summary>
+                {category === 'Projekt'
+                  ? 'Projekty praktyczne'
+                  : category === 'Ćwiczenie'
+                    ? 'Małe laboratoria — problem i naprawa'
+                    : 'Celowo złe praktyki'}
+              </summary>
+              {networkExamples
+                .filter((e) => e.category === category)
+                .map((example) => (
+                  <button
+                    key={example.id}
+                    className={example.intentionalProblems ? 'intentional' : ''}
+                    onClick={() => {
+                      load(example.create());
+                      setOpen(false);
+                      trigger.current?.focus();
+                    }}
+                  >
+                    <strong>{example.name}</strong>
+                    <small>
+                      {example.level} · {example.description}
+                    </small>
+                  </button>
+                ))}
+            </details>
           ))}
           <small className="example-menu-hint">
             Zastępuje bieżący projekt. Zmianę można cofnąć.

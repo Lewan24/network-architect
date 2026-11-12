@@ -1,3 +1,4 @@
+import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Plus, Trash } from '@phosphor-icons/react';
 import { useState } from 'react';
 import type { Device, Network, Port } from '../model/networkTypes';
@@ -81,8 +82,11 @@ export function PortsEditor({
       <h3>Budżet PoE i zapotrzebowanie</h3>
       <div className="scope-grid">
         <label className="field">
-          <span>Łączny budżet PSE urządzenia (W)</span>
+          <span>
+            Łączny budżet PSE urządzenia (W) <FieldHelp topic="budget" />
+          </span>
           <input
+            title={fieldTips.budget}
             type="number"
             min={0}
             max={10000}
@@ -114,8 +118,11 @@ export function PortsEditor({
       {device.powerSource === 'poe' && (
         <>
           <label className="field">
-            <span>Wymagana moc przy odbiorniku PD (W)</span>
+            <span>
+              Wymagana moc przy odbiorniku PD (W) <FieldHelp topic="power" />
+            </span>
             <input
+              title={fieldTips.power}
               type="number"
               min={0.1}
               max={1000}

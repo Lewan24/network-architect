@@ -1,3 +1,4 @@
+import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Info, Plus, Trash } from '@phosphor-icons/react';
 import type { Device, Network, PortForward, StaticNat } from '../model/networkTypes';
 
@@ -94,15 +95,21 @@ export function NatEditor({
                 </select>
               </label>
               <label className="field">
-                <span>Publiczny IP</span>
+                <span>
+                  Publiczny IP <FieldHelp topic="nat" />
+                </span>
                 <input
+                  title={fieldTips.nat}
                   value={r.externalIp}
                   onChange={(e) => forward(r.id, { externalIp: e.target.value })}
                 />
               </label>
               <label className="field">
-                <span>Port WAN</span>
+                <span>
+                  Port WAN <FieldHelp topic="nat" />
+                </span>
                 <input
+                  title={fieldTips.nat}
                   type="number"
                   min={1}
                   max={65535}
@@ -111,16 +118,22 @@ export function NatEditor({
                 />
               </label>
               <label className="field">
-                <span>Prywatny IP</span>
+                <span>
+                  Prywatny IP <FieldHelp topic="nat" />
+                </span>
                 <input
+                  title={fieldTips.nat}
                   list={listId}
                   value={r.internalIp}
                   onChange={(e) => forward(r.id, { internalIp: e.target.value })}
                 />
               </label>
               <label className="field">
-                <span>Port LAN</span>
+                <span>
+                  Port LAN <FieldHelp topic="nat" />
+                </span>
                 <input
+                  title={fieldTips.nat}
                   type="number"
                   min={1}
                   max={65535}

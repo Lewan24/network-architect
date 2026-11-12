@@ -165,6 +165,7 @@ export function createDemoNetwork(): Network {
   };
   const network: Network = {
     name: 'Laboratorium · biuro, drukarka i monitoring PoE',
+    exampleId: 'infrastructure-lab',
     vlans: [
       {
         id: 99,
@@ -652,12 +653,4 @@ export const demoScenarios: {
     probe: { source, destination, protocol, port, checkReply: true },
     expected,
   })),
-];
-export const networkExamples = [
-  {
-    id: 'infrastructure-lab',
-    name: 'Biuro, serwery i Wi-Fi',
-    description: 'Pracownicy i drukarka, Hyper-V/NPM, kamery PoE, izolacja gości i CCTV',
-    create: createDemoNetwork,
-  },
 ];

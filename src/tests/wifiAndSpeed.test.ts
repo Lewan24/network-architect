@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createDemoNetwork, networkExamples } from '../examples/demoNetwork';
+import { createDemoNetwork } from '../examples/demoNetwork';
+import { networkExamples } from '../examples/catalog';
 import { parseNetwork } from '../model/network';
 import { simulateNetwork as simulate } from '../simulation/networkEngine';
 import {

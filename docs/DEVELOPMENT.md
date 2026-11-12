@@ -102,3 +102,11 @@ Po `npm run build` można sprawdzić także produkcyjny pakiet: `npm run test:ui
 `PortPanel` jest wspólny dla edycji urządzenia, kabla i obu kroków łączenia. `portConnections.ts` waliduje wybrane końce przed atomowym dodaniem kabla; nie rezerwuj portu po samym wyborze pierwszego urządzenia. `PortConnectionDialog` pokazuje zgodność profilu i zapisuje dopiero po zatwierdzeniu obu końców. Test UI sprawdza również kolory/oznaczenia gniazd, zajętość, jawne końce, anulowanie, DAC i przypisanie VM.
 
 Fabryka `createDemoNetwork` definiuje 22 urządzenia, 7 VLAN-ów, jawne porty/trunki i 24 scenariusze. Polityki i wymagania przykładu: [DEMO_NETWORK.md](./DEMO_NETWORK.md). `demoAcceptance.test.ts` obejmuje uprawnienia, DHCP, PoE, awarie istniejących łączy i rozdzielenie obszarów. Przy zmianie polityk demo testy innych mechanizmów powinny jawnie skonfigurować własne wymagane zezwolenia/porty, zamiast polegać na szerokim permit w przykładzie.
+
+## Przykłady i nauka
+
+[EXAMPLE_PROJECTS.md](./EXAMPLE_PROJECTS.md) opisuje katalog w `src/examples/catalog.ts`, fabryki i scenariusze. `Network.exampleId` identyfikuje wzorzec również po imporcie; nie jest uprawnieniem ani wynikiem walidacji. Panel symulacji pobiera scenariusze z katalogu zamiast rozpoznawać tylko pierwotny projekt.
+
+Treść poradnika jest w `src/learning/guideContent.ts`. `npm run docs:guide` generuje z niej [NETWORK_GUIDE.md](./NETWORK_GUIDE.md), aby instrukcja w aplikacji i w repozytorium miała jedno źródło. `FieldHelp` używa natywnego popover w top layer, aby działać nad modalnymi dialogami. Jego klawiaturowy trigger nie jest natywnym elementem labelable — nie przejmuje powiązania etykiety z inputem. Kontrolki zachowują także natywny `title`.
+
+`SettingsSection` porządkuje adresację, bramę, DHCP, DNS, parametry fizyczne i VLAN w portach. ACL ma osobne karty reguł z widocznymi etykietami; kolejność w danych pozostaje kolejnością wykonania. Zapis nadal zatwierdza kopię roboczą i podlega undo/redo.
