@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import type { ContextTarget } from '../NetworkCanvas';
+import type { ContextTarget } from '../canvas/NetworkCanvas';
 
 export function MenuItem({
   icon,

@@ -1,5 +1,5 @@
 import { Info } from '@phosphor-icons/react';
-import { Modal } from '../dialogs';
+import { Modal } from './Modal';
 
 export function HelpDialog({ close }: { close: () => void }) {
   return (
@@ -12,8 +12,8 @@ export function HelpDialog({ close }: { close: () => void }) {
         <dl>
           <dt>Dodawanie</dt>
           <dd>
-            Przeciągnij urządzenie z biblioteki lub kliknij jego miniaturę. Menu prawego przycisku
-            na pustej planszy dodaje obiekt w wybranym miejscu.
+            Rozwiń kategorię w bibliotece, a następnie przeciągnij urządzenie na planszę lub kliknij
+            jego miniaturę. Wyszukiwanie obejmuje nazwy, opisy i kategorie.
           </dd>
           <dt>Poruszanie się</dt>
           <dd>
@@ -29,8 +29,8 @@ export function HelpDialog({ close }: { close: () => void }) {
           <dt>VLAN-y i adresy</dt>
           <dd>
             Zdefiniuj podsieci przyciskiem „Sieci i VLAN-y”. W urządzeniu wybierz VLAN i adres
-            automatyczny lub własny statyczny IP. Brama jest rezerwowana; nie jest automatycznie
-            tworzonym urządzeniem.
+            automatyczny lub własny statyczny IP. Dwuklik obszaru otwiera edycję danej sieci. Brama
+            jest rezerwowana; nie jest automatycznie tworzonym urządzeniem.
           </dd>
           <dt>Reguły firewalla</dt>
           <dd>

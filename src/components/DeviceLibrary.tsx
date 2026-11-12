@@ -1,8 +1,16 @@
-import { GearSix, ListBullets, MagnifyingGlass, Plus, SquaresFour } from '@phosphor-icons/react';
+import { DEVICE_VIEW_BOX } from '../devices/deviceArtwork';
+import {
+  CaretDown,
+  GearSix,
+  ListBullets,
+  MagnifyingGlass,
+  Plus,
+  SquaresFour,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
-import { DeviceGlyph } from '../DeviceGlyph';
-import { kinds } from '../deviceCatalog';
-import type { Kind, Network } from '../networkTypes';
+import { DeviceGlyph } from '../devices/DeviceGlyph';
+import { deviceCategories, kinds, type DeviceCategory } from '../devices/deviceCatalog';
+import type { Kind, Network } from '../model/networkTypes';
 
 type Props = {
   network: Network;
@@ -10,7 +18,7 @@ type Props = {
   select: (id: string) => void;
   edit: (id: string) => void;
   add: (kind: Kind) => void;
-  editVlans: () => void;
+  editVlans: (id?: number) => void;
 };
 export function DeviceLibrary({
   network: net,
@@ -21,9 +29,12 @@ export function DeviceLibrary({
   editVlans,
 }: Props) {
   const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<Set<DeviceCategory>>(() => new Set());
   const [palette, setPalette] = useState<'devices' | 'layers'>('devices');
   const filtered = (Object.keys(kinds) as Kind[]).filter((kind) =>
-    kinds[kind].label.toLocaleLowerCase('pl').includes(query.toLocaleLowerCase('pl')),
+    `${kinds[kind].label} ${kinds[kind].description} ${deviceCategories[kinds[kind].category]}`
+      .toLocaleLowerCase('pl')
+      .includes(query.trim().toLocaleLowerCase('pl')),
   );
   return (
     <aside className="library">
@@ -53,26 +64,59 @@ export function DeviceLibrary({
               placeholder="Szukaj urządzenia"
               aria-label="Szukaj urządzenia"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setCollapsed(new Set());
+              }}
             />
           </div>
-          <div className="device-library">
-            {filtered.map((kind) => (
-              <button
-                key={kind}
-                className="device-tile"
-                draggable
-                title={`${kinds[kind].label} — ${kinds[kind].description}. Przeciągnij na planszę lub kliknij.`}
-                onDragStart={(e) => e.dataTransfer.setData('application/netweave', kind)}
-                onClick={() => add(kind)}
-              >
-                <svg viewBox="-55 -85 110 120" aria-hidden="true">
-                  <DeviceGlyph kind={kind} color={kinds[kind].color} />
-                </svg>
-                <strong>{kinds[kind].label}</strong>
-                <Plus className="tile-add" />
-              </button>
-            ))}
+          <div className="device-categories">
+            {(Object.keys(deviceCategories) as DeviceCategory[]).map((category) => {
+              const members = filtered.filter((kind) => kinds[kind].category === category);
+              if (!members.length) return null;
+              const expanded = !collapsed.has(category);
+              return (
+                <section className="device-category" key={category}>
+                  <button
+                    className="device-category-toggle"
+                    aria-expanded={expanded}
+                    aria-controls={`category-${category}`}
+                    onClick={() => {
+                      setCollapsed((previous) => {
+                        const next = new Set(previous);
+                        if (next.has(category)) next.delete(category);
+                        else next.add(category);
+                        return next;
+                      });
+                    }}
+                  >
+                    <CaretDown aria-hidden="true" />
+                    <span>{deviceCategories[category]}</span>
+                    <small>{members.length}</small>
+                  </button>
+                  {expanded && (
+                    <div className="device-library" id={`category-${category}`}>
+                      {members.map((kind) => (
+                        <button
+                          key={kind}
+                          className="device-tile"
+                          draggable
+                          title={`${kinds[kind].label} — ${kinds[kind].description}. Przeciągnij na planszę lub kliknij.`}
+                          onDragStart={(e) => e.dataTransfer.setData('application/netweave', kind)}
+                          onClick={() => add(kind)}
+                        >
+                          <svg viewBox={DEVICE_VIEW_BOX} aria-hidden="true">
+                            <DeviceGlyph kind={kind} color={kinds[kind].color} />
+                          </svg>
+                          <strong>{kinds[kind].label}</strong>
+                          <Plus className="tile-add" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
           </div>
           {!filtered.length && <p className="library-no-results">Nie znaleziono urządzeń.</p>}
           <p className="library-tip">
@@ -113,7 +157,11 @@ export function DeviceLibrary({
           </button>
         </div>
         {net.vlans.map((v) => (
-          <button key={v.id} onClick={() => editVlans()} title={`${v.cidr} · brama ${v.gateway}`}>
+          <button
+            key={v.id}
+            onClick={() => editVlans(v.id)}
+            title={`${v.cidr} · brama ${v.gateway}`}
+          >
             <i style={{ background: v.color }} />
             <span>{v.name}</span>
             <b>{v.id}</b>
