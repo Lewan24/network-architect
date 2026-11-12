@@ -100,3 +100,5 @@ Test obejmuje pasek narzędzi przy szerokościach 390, 768, 1024 i 1440 px, zak�
 Po `npm run build` można sprawdzić także produkcyjny pakiet: `npm run test:ui -- --preview`. Zmienna `NETWEAVE_TEST_URL` pozwala wskazać już uruchomioną lokalną aplikację; wówczas skrypt nie uruchamia własnego serwera.
 
 `PortPanel` jest wspólny dla edycji urządzenia, kabla i obu kroków łączenia. `portConnections.ts` waliduje wybrane końce przed atomowym dodaniem kabla; nie rezerwuj portu po samym wyborze pierwszego urządzenia. `PortConnectionDialog` pokazuje zgodność profilu i zapisuje dopiero po zatwierdzeniu obu końców. Test UI sprawdza również kolory/oznaczenia gniazd, zajętość, jawne końce, anulowanie, DAC i przypisanie VM.
+
+Fabryka `createDemoNetwork` definiuje 22 urządzenia, 7 VLAN-ów, jawne porty/trunki i 24 scenariusze. Polityki i wymagania przykładu: [DEMO_NETWORK.md](./DEMO_NETWORK.md). `demoAcceptance.test.ts` obejmuje uprawnienia, DHCP, PoE, awarie istniejących łączy i rozdzielenie obszarów. Przy zmianie polityk demo testy innych mechanizmów powinny jawnie skonfigurować własne wymagane zezwolenia/porty, zamiast polegać na szerokim permit w przykładzie.

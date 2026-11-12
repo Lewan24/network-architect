@@ -2,7 +2,7 @@ import { makePort, prepareHardware } from '../model/ports';
 import { defaultServices } from '../devices/deviceCatalog';
 import { reconcileDhcp } from '../model/dhcp';
 import { defaultInternet } from '../model/internetModel';
-import type { Device, Network, Probe, Rule, Service, Vlan } from '../model/networkTypes';
+import type { Device, Link, Network, Probe, Rule, Service, Vlan } from '../model/networkTypes';
 const service = (port: number, name: string, protocol: 'TCP' | 'UDP' = 'TCP'): Service => ({
   id: `${protocol}-${port}`,
   name,
@@ -39,6 +39,12 @@ const permit = (
   port = '*',
   ingress: Rule['ingress'] = 'lan',
 ): Rule => ({ id, source, destination, protocol, port, ingress, action: 'allow' });
+function denyPrivate(source: string, prefix: string): Rule[] {
+  return ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'].map((destination, i) => ({
+    ...permit(`${prefix}-${i}`, source, destination),
+    action: 'deny',
+  }));
+}
 function scope(id: number, name: string, color: string): Vlan {
   return {
     id,
@@ -56,16 +62,16 @@ function scope(id: number, name: string, color: string): Vlan {
   };
 }
 export function createDemoNetwork(): Network {
-  const internet = { ...defaultInternet(), x: 180, y: 80 };
+  const internet = { ...defaultInternet(), x: 230, y: -30 };
   const router: Device = {
-    ...host('demo-router', 'router', 'Router brzegowy', '172.16.255.1', 99, 340, 175),
+    ...host('demo-router', 'router', 'Router brzegowy', '172.16.255.1', 99, 440, 90),
     edgeRole: 'edge',
     wanIp: '203.0.113.10',
     outboundNat: true,
     defaultAcl: 'deny',
     routingMode: 'static',
     routes: [
-      ...[10, 20, 30, 40, 50].map((id) => ({
+      ...[10, 20, 30, 40, 50, 60].map((id) => ({
         id: `route-${id}`,
         destination: `192.168.${id}.0/24`,
         nextHopId: 'demo-firewall',
@@ -105,29 +111,41 @@ export function createDemoNetwork(): Network {
     permit('guest-internet', 'vlan:50', '*'),
   );
   const firewall: Device = {
-    ...host('demo-firewall', 'firewall', 'Firewall / bramy VLAN', '172.16.255.2', 99, 510, 270),
+    ...host('demo-firewall', 'firewall', 'Firewall / bramy VLAN', '172.16.255.2', 99, 650, 200),
     edgeRole: 'internal',
     defaultAcl: 'deny',
     routingMode: 'static',
     routes: [{ id: 'to-edge', destination: '0.0.0.0/0', nextHopId: router.id, metric: 100 }],
     rules: [
+      ...denyPrivate('vlan:50', 'guest-private'),
       permit('published-http', '*', 'device:demo-docker', 'TCP', '80', 'wan'),
       permit('published-https', '*', 'device:demo-docker', 'TCP', '443', 'wan'),
       permit('admin-lan', 'vlan:10', '*'),
-      permit('server-lan', 'vlan:20', '*'),
-      permit('cameras-dns', 'vlan:30', 'device:demo-dns', 'UDP', '53'),
+      ...['demo-camera1', 'demo-camera2'].flatMap((id) => [
+        permit(`nvr-${id}-rtsp`, 'device:demo-nvr', `device:${id}`, 'TCP', '554'),
+        permit(`nvr-${id}-https`, 'device:demo-nvr', `device:${id}`, 'TCP', '443'),
+      ]),
+      ...(['UDP', 'TCP'] as const).flatMap((protocol) => [
+        permit(`cameras-dns-${protocol}`, 'vlan:30', 'device:demo-dns', protocol, '53'),
+        permit(`printers-dns-${protocol}`, 'vlan:60', 'device:demo-dns', protocol, '53'),
+        permit(`staff-dns-${protocol}`, 'vlan:40', 'device:demo-dns', protocol, '53'),
+      ]),
+      permit('staff-dns-ping', 'vlan:40', 'device:demo-dns', 'ICMP'),
+      permit('staff-web', 'vlan:40', 'device:demo-docker', 'TCP', '443'),
+      permit('staff-app', 'vlan:40', 'device:demo-app', 'TCP', '3000'),
+      permit('staff-files', 'vlan:40', 'device:demo-nas', 'TCP', '445'),
+      permit('staff-nvr', 'vlan:40', 'device:demo-nvr', 'TCP', '443'),
+      permit('staff-print-ipp', 'vlan:40', 'device:demo-printer', 'TCP', '631'),
+      permit('staff-print-raw', 'vlan:40', 'device:demo-printer', 'TCP', '9100'),
+      ...denyPrivate('vlan:40', 'staff-private'),
+      ...denyPrivate('vlan:20', 'server-private'),
+      permit('server-internet', 'vlan:20', '*'),
+      permit('staff-public', 'vlan:40', '*'),
+      permit('guest-public', 'vlan:50', '*'),
     ],
   };
-  // Guest traffic is filtered before the general permits; DHCP and local guest DNS stay within VLAN 50.
-  firewall.rules.unshift(
-    ...['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'].map((destination, i): Rule => ({
-      ...permit(`guest-private-${i}`, 'vlan:50', destination),
-      action: 'deny',
-    })),
-  );
-  firewall.rules.push(permit('staff-lan', 'vlan:40', '*'), permit('guest-public', 'vlan:50', '*'));
   const dns: Device = {
-    ...host('demo-dns', 'dns', 'DNS · lab.home.arpa', '192.168.20.53', 20, 735, 495),
+    ...host('demo-dns', 'dns', 'DNS · lab.home.arpa', '192.168.20.53', 20, 920, 410),
     dnsRecords: [
       ['npm', 'demo-docker'],
       ['docker', 'demo-docker'],
@@ -138,6 +156,7 @@ export function createDemoNetwork(): Network {
       ['dns', 'demo-dns'],
       ['kamera1', 'demo-camera1'],
       ['kamera2', 'demo-camera2'],
+      ['drukarka', 'demo-printer'],
     ].map(([name, deviceId]) => ({
       id: `record-${name}`,
       name: `${name}.lab.home.arpa`,
@@ -145,7 +164,7 @@ export function createDemoNetwork(): Network {
     })),
   };
   const network: Network = {
-    name: 'Laboratorium · Hyper-V, Docker i monitoring',
+    name: 'Laboratorium · biuro, drukarka i monitoring PoE',
     vlans: [
       {
         id: 99,
@@ -155,26 +174,27 @@ export function createDemoNetwork(): Network {
         gatewayDeviceId: router.id,
         color: '#c09b7e',
       },
-      scope(10, 'Biuro / administracja', '#6b9e99'),
+      scope(10, 'Administracja', '#6b9e99'),
       scope(20, 'Serwery i wirtualizacja', '#8099bc'),
       scope(30, 'Kamery / CCTV', '#aaa075'),
-      scope(40, 'Wi-Fi / pracownicy', '#7e9cba'),
+      scope(40, 'Pracownicy / LAN i Wi-Fi', '#7e9cba'),
       {
         ...scope(50, 'Wi-Fi / goście · izolacja LAN', '#ad8baf'),
         dnsServerIds: ['demo-guest-dns'],
       },
+      { ...scope(60, 'Drukarka / IPP', '#799c85'), dhcpEnabled: false },
     ],
     devices: [
       internet,
       router,
       firewall,
       {
-        ...host('demo-lan-switch', 'switch', 'Switch biurowy', '192.168.10.2', 10, 325, 395),
-        allowedVlans: [10],
+        ...host('demo-lan-switch', 'switch', 'Switch biurowy', '192.168.10.2', 10, 250, 420),
+        allowedVlans: [10, 40, 60],
       },
       {
-        ...host('demo-server-switch', 'switch', 'Switch serwerowy', '192.168.20.2', 20, 770, 385),
-        allowedVlans: [20],
+        ...host('demo-server-switch', 'switch', 'Switch serwerowy', '192.168.20.2', 20, 1100, 300),
+        allowedVlans: [20, 30],
       },
       {
         ...host(
@@ -183,16 +203,24 @@ export function createDemoNetwork(): Network {
           'Switch PoE · kamery',
           '192.168.30.2',
           30,
-          780,
-          745,
+          1230,
+          870,
         ),
         allowedVlans: [30],
       },
-      host('demo-pc', 'workstation', 'Stanowisko administratora', '', 10, 160, 490),
-      host('demo-laptop', 'workstation', 'Laptop biurowy', '', 10, 320, 575),
+      host('demo-pc', 'workstation', 'Stanowisko administratora', '', 10, 70, 530),
+      host('demo-laptop', 'workstation', 'Laptop biurowy', '', 40, 360, 720),
+      {
+        ...host('demo-printer', 'printer', 'Drukarka · pracownicy', '192.168.60.20', 60, 450, 490),
+        dnsServerIds: ['demo-dns'],
+        services: [
+          ...defaultServices('printer'),
+          service(443, 'Panel drukarki HTTPS (administracja)'),
+        ],
+      },
       dns,
       {
-        ...host('demo-hyperv', 'server', 'Hyper-V · host', '192.168.20.10', 20, 970, 485),
+        ...host('demo-hyperv', 'server', 'Hyper-V · host', '192.168.20.10', 20, 1280, 410),
         serverRole: 'hypervisor',
         hypervisorVendor: 'Hyper-V',
         services: [service(443, 'Zarządzanie hostem HTTPS')],
@@ -204,8 +232,8 @@ export function createDemoNetwork(): Network {
           'Docker · Nginx Proxy Manager',
           '192.168.20.20',
           20,
-          1130,
-          575,
+          1280,
+          610,
         ),
         hostId: 'demo-hyperv',
         services: [
@@ -217,27 +245,27 @@ export function createDemoNetwork(): Network {
         ],
       },
       {
-        ...host('demo-app', 'vm', 'VM aplikacji · port 3000', '192.168.20.21', 20, 1285, 665),
+        ...host('demo-app', 'vm', 'VM aplikacji · port 3000', '192.168.20.21', 20, 1480, 610),
         hostId: 'demo-hyperv',
         services: [service(3000, 'Aplikacja webowa'), service(22, 'SSH')],
       },
       {
-        ...host('demo-nas', 'server', 'NAS / kopie zapasowe', '192.168.20.30', 20, 960, 650),
+        ...host('demo-nas', 'server', 'NAS / kopie zapasowe', '192.168.20.30', 20, 920, 610),
         services: [service(443, 'Panel NAS HTTPS'), service(445, 'SMB')],
       },
       {
-        ...host('demo-nvr', 'server', 'NVR · rejestrator', '192.168.20.40', 20, 1115, 760),
+        ...host('demo-nvr', 'server', 'NVR · rejestrator', '192.168.20.40', 20, 1100, 610),
         services: [service(443, 'Panel NVR'), service(8554, 'Usługa wideo')],
       },
-      host('demo-camera1', 'camera', 'Kamera 01 · wejście', '', 30, 620, 835),
-      host('demo-camera2', 'camera', 'Kamera 02 · parking', '', 30, 785, 925),
+      host('demo-camera1', 'camera', 'Kamera 01 · wejście', '', 30, 1060, 1010),
+      host('demo-camera2', 'camera', 'Kamera 02 · parking', '', 30, 1430, 1010),
       {
-        ...host('demo-staff-ap', 'accesspoint', 'AP · pracownicy', '192.168.40.2', 40, 35, 740),
+        ...host('demo-staff-ap', 'accesspoint', 'AP · pracownicy', '192.168.40.2', 40, 180, 830),
         ssid: 'Firma-Staff',
       },
-      host('demo-staff-client', 'workstation', 'Laptop · Wi-Fi pracowników', '', 40, 195, 835),
+      host('demo-staff-client', 'workstation', 'Laptop · Wi-Fi pracowników', '', 40, 0, 940),
       {
-        ...host('demo-guest-ap', 'accesspoint', 'AP · goście', '192.168.50.2', 50, 280, 1050),
+        ...host('demo-guest-ap', 'accesspoint', 'AP · goście', '192.168.50.2', 50, 650, 830),
         ssid: 'Firma-Guest',
         // This AP has a second wired LAN socket for the local guest DNS server.
         ports: [
@@ -246,7 +274,7 @@ export function createDemoNetwork(): Network {
           { ...makePort('radio0', 'wifi', 50), mode: 'auto' },
         ],
       },
-      host('demo-guest-client', 'workstation', 'Laptop gościa · tylko Internet', '', 50, 440, 1145),
+      host('demo-guest-client', 'workstation', 'Laptop gościa · tylko Internet', '', 50, 830, 940),
       {
         ...host(
           'demo-guest-dns',
@@ -254,15 +282,15 @@ export function createDemoNetwork(): Network {
           'DNS gościnny · bez stref LAN',
           '192.168.50.53',
           50,
-          120,
-          1145,
+          470,
+          960,
         ),
         dnsRecords: [{ id: 'guest-public-dns', name: 'internet.example', address: '203.0.113.1' }],
       },
     ],
     links: [],
   };
-  const link = (a: string, b: string, vlan?: number) => ({
+  const link = (a: string, b: string, vlan?: number): Link => ({
     id: `${a}-${b}`,
     a,
     b,
@@ -274,9 +302,17 @@ export function createDemoNetwork(): Network {
     link(router.id, firewall.id, 99),
     link(firewall.id, 'demo-lan-switch', 10),
     link(firewall.id, 'demo-server-switch', 20),
-    link(firewall.id, 'demo-camera-switch', 30),
+    {
+      ...link('demo-server-switch', 'demo-camera-switch', 30),
+      aPortId: 'sfp0',
+      bPortId: 'sfp0',
+      cable: 'om3',
+      lengthMeters: 35,
+      label: 'CCTV · światłowód OM3 / 10GBASE-SR',
+    },
     link('demo-lan-switch', 'demo-pc', 10),
-    link('demo-lan-switch', 'demo-laptop', 10),
+    link('demo-lan-switch', 'demo-printer', 60),
+    link('demo-lan-switch', 'demo-laptop', 40),
     ...['demo-dns', 'demo-hyperv', 'demo-nas', 'demo-nvr'].map((id) =>
       link('demo-server-switch', id, 20),
     ),
@@ -284,18 +320,61 @@ export function createDemoNetwork(): Network {
     link('demo-camera-switch', 'demo-camera2', 30),
   ];
   network.links.push(
-    link(firewall.id, 'demo-staff-ap', 40),
+    link('demo-lan-switch', 'demo-staff-ap', 40),
     link('demo-staff-ap', 'demo-staff-client', 40),
     link(firewall.id, 'demo-guest-ap', 50),
     link('demo-guest-ap', 'demo-guest-client', 50),
     link('demo-guest-ap', 'demo-guest-dns', 50),
   );
   const prepared = prepareHardware(network);
+  // Every used physical port has an explicit configuration; no implicit VLAN propagation.
+  for (const device of prepared.devices.filter((d) => d.kind === 'switch')) {
+    for (const port of device.ports || []) {
+      port.mode = 'access';
+      port.accessVlan = device.vlan;
+    }
+  }
+  for (const wire of prepared.links) {
+    if (wire.accessVlan) {
+      for (const side of ['a', 'b'] as const) {
+        const device = prepared.devices.find((d) => d.id === wire[side])!;
+        const port = device.ports!.find((p) => p.id === wire[`${side}PortId`])!;
+        port.mode = 'access';
+        port.accessVlan = wire.accessVlan;
+      }
+    }
+    if (wire.cable === 'cat6') wire.lengthMeters = wire.b.startsWith('demo-camera') ? 18 : 5;
+    wire.label ||= wire.accessVlan ? `VLAN ${wire.accessVlan} · access` : 'WAN · RJ45';
+  }
+  const trunk = (a: string, b: string, vlans: number[], native: number) => {
+    const wire = prepared.links.find((l) => l.a === a && l.b === b)!;
+    wire.mode = 'trunk';
+    wire.allowedVlans = vlans;
+    delete wire.accessVlan;
+    wire.label = `Trunk · VLAN ${vlans.join('/')}`;
+    for (const side of ['a', 'b'] as const) {
+      const port = prepared.devices
+        .find((d) => d.id === wire[side])!
+        .ports!.find((p) => p.id === wire[`${side}PortId`])!;
+      port.mode = 'trunk';
+      port.nativeVlan = native;
+      port.allowedVlans = [...vlans];
+      port.tagNative = false;
+    }
+  };
+  trunk(firewall.id, 'demo-lan-switch', [10, 40, 60], 10);
+  trunk(firewall.id, 'demo-server-switch', [20, 30], 20);
+  const fiber = prepared.links.find((l) => l.cable === 'om3')!;
+  for (const side of ['a', 'b'] as const)
+    prepared.devices
+      .find((d) => d.id === fiber[side])!
+      .ports!.find((p) => p.id === fiber[`${side}PortId`])!.module = '10g-sr';
   const cameraSwitch = prepared.devices.find((d) => d.id === 'demo-camera-switch')!;
   cameraSwitch.poeBudgetWatts = 60;
   for (const camera of prepared.devices.filter((d) => d.kind === 'camera')) {
     camera.powerSource = 'poe';
     camera.powerWatts = 12;
+    camera.ports!.find((p) => p.connector === 'rj45')!.speeds = [10, 100];
     const wire = prepared.links.find(
       (l) =>
         (l.a === camera.id && l.b === cameraSwitch.id) ||
@@ -456,12 +535,129 @@ export const demoScenarios: {
     },
     expected: false,
   },
+  ...(
+    [
+      [
+        'staff-ipp',
+        'Wi-Fi pracownika → drukarka · IPP 631',
+        'demo-staff-client',
+        'drukarka.lab.home.arpa',
+        'TCP',
+        631,
+        true,
+      ],
+      [
+        'wired-ipp',
+        'LAN pracownika → drukarka · IPP 631',
+        'demo-laptop',
+        'drukarka.lab.home.arpa',
+        'TCP',
+        631,
+        true,
+      ],
+      [
+        'admin-printer',
+        'Administrator → panel drukarki · HTTPS',
+        'demo-pc',
+        'demo-printer',
+        'TCP',
+        443,
+        true,
+      ],
+      [
+        'staff-printer-admin-denied',
+        'Pracownik → panel drukarki · blokada',
+        'demo-staff-client',
+        'demo-printer',
+        'TCP',
+        443,
+        false,
+      ],
+      [
+        'guest-printer-denied',
+        'Gość → drukarka · blokada',
+        'demo-guest-client',
+        'demo-printer',
+        'TCP',
+        631,
+        false,
+      ],
+      [
+        'staff-cctv-denied',
+        'Pracownik → kamera · blokada CCTV',
+        'demo-staff-client',
+        'demo-camera1',
+        'TCP',
+        554,
+        false,
+      ],
+      [
+        'staff-nvr',
+        'Pracownik → panel NVR · HTTPS',
+        'demo-staff-client',
+        'nvr.lab.home.arpa',
+        'TCP',
+        443,
+        true,
+      ],
+      [
+        'recording-camera2',
+        'NVR → kamera2 · RTSP 554',
+        'demo-nvr',
+        'kamera2.lab.home.arpa',
+        'TCP',
+        554,
+        true,
+      ],
+      [
+        'camera-printer-denied',
+        'Kamera → drukarka · blokada',
+        'demo-camera1',
+        'demo-printer',
+        'TCP',
+        631,
+        false,
+      ],
+      [
+        'camera-internet-denied',
+        'Kamera → Internet · blokada',
+        'demo-camera1',
+        'internet-default',
+        'ICMP',
+        0,
+        false,
+      ],
+      [
+        'printer-internet-denied',
+        'Drukarka → Internet · blokada',
+        'demo-printer',
+        'internet-default',
+        'ICMP',
+        0,
+        false,
+      ],
+      [
+        'server-camera-denied',
+        'Serwer aplikacji → kamera · blokada',
+        'demo-app',
+        'demo-camera1',
+        'TCP',
+        554,
+        false,
+      ],
+    ] as const
+  ).map(([id, label, source, destination, protocol, port, expected]) => ({
+    id,
+    label,
+    probe: { source, destination, protocol, port, checkReply: true },
+    expected,
+  })),
 ];
 export const networkExamples = [
   {
     id: 'infrastructure-lab',
     name: 'Biuro, serwery i Wi-Fi',
-    description: 'Hyper-V, Docker/NPM, CCTV oraz izolowana sieć gościnna',
+    description: 'Pracownicy i drukarka, Hyper-V/NPM, kamery PoE, izolacja gości i CCTV',
     create: createDemoNetwork,
   },
 ];

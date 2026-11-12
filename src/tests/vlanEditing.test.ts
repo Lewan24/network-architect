@@ -12,7 +12,7 @@ describe('individual VLAN editing', () => {
     expect(second.id).not.toBe(first.id);
     expect(second.cidr).not.toBe(first.cidr);
     expect(first.dhcpEnabled).toBeUndefined();
-    expect(network.vlans).toHaveLength(6);
+    expect(network.vlans).toHaveLength(7);
   });
   it('prepares LAN and DHCP defaults for the device being edited', () => {
     const network = createDemoNetwork();

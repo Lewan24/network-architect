@@ -87,7 +87,7 @@ try {
   await page.goto(url);
   await page.locator('.network-device').first().waitFor();
   const original = await savedProject();
-  assert.equal(original.devices.length, 21);
+  assert.equal(original.devices.length, 22);
 
   for (const [width, height] of [
     [1440, 1000],
@@ -415,12 +415,12 @@ try {
   await switchNode.click();
   await dialog().locator('[data-port-id="sfp0"]').click();
   await page.getByRole('button', { name: /^Switch serwerowy,/ }).click();
-  await dialog().locator('[data-port-id="sfp0"]').click();
+  await dialog().locator('[data-port-id="sfp1"]').click();
   assert.equal(await dialog().getByLabel('Medium nowego połączenia').inputValue(), 'dac');
   await dialog().getByRole('button', { name: 'Połącz wybrane porty', exact: true }).click();
   await page.waitForFunction(() =>
     JSON.parse(localStorage.getItem('netweave-project')).links.some(
-      (l) => l.aPortId === 'sfp0' && l.bPortId === 'sfp0' && l.cable === 'dac',
+      (l) => l.aPortId === 'sfp0' && l.bPortId === 'sfp1' && l.cable === 'dac',
     ),
   );
   // VM attachment never consumes a physical socket on the hypervisor.
@@ -432,6 +432,59 @@ try {
   await page.screenshot({ path: '/tmp/netweave-ui-port-flow.png' });
   console.log(
     'PASS front panels and connection flow: socket states, explicit A/B ports, media, cancellation, DAC, VM',
+  );
+  await page.close();
+  page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  await page.goto(url);
+  await page.getByRole('button', { name: 'Przykładowe projekty', exact: true }).click();
+  await page.getByRole('button', { name: /Biuro, serwery i Wi-Fi/ }).click();
+  await page.getByRole('button', { name: /^Drukarka · pracownicy,/ }).waitFor();
+  await page.screenshot({ path: '/tmp/netweave-demo-layout.png' });
+  await page.getByRole('button', { name: 'Obiekty', exact: true }).click();
+  await page
+    .locator('.layer-list > button')
+    .filter({ hasText: 'Switch PoE · kamery' })
+    .first()
+    .dblclick();
+  await dialog().getByRole('button', { name: 'Porty i PoE', exact: true }).click();
+  assert.equal(await dialog().getByLabel('Łączny budżet PSE urządzenia (W)').inputValue(), '60');
+  assert((await dialog().innerText()).includes('Alokacja 30.8 W'));
+  assert.equal(await dialog().locator('.port-slot.up').count(), 3);
+  await page.screenshot({ path: '/tmp/netweave-demo-poe.png' });
+  await cancel();
+  await page.getByRole('button', { name: 'Symulacja', exact: true }).click();
+  const scenarios = page.getByLabel('Scenariusz przykładowej sieci');
+  assert.equal(await scenarios.locator('option').count(), 25);
+  await page.getByRole('slider', { name: 'Tempo animacji', exact: true }).focus();
+  await page.getByRole('slider', { name: 'Tempo animacji', exact: true }).press('End');
+  for (const [id, expected] of [
+    ['staff-ipp', true],
+    ['wired-ipp', true],
+    ['guest-printer-denied', false],
+    ['recording', true],
+    ['recording-camera2', true],
+    ['staff-cctv-denied', false],
+  ]) {
+    await scenarios.selectOption(id);
+    await page.getByRole('button', { name: 'Wyślij pakiet', exact: true }).click();
+    await page.locator('.sim-section-heading > .pending').waitFor({ state: 'visible' });
+    await page
+      .locator(`.sim-section-heading > .${expected ? 'success' : 'failure'}`)
+      .waitFor({ state: 'visible' });
+    if (!expected)
+      assert((await page.locator('.sim-current-message').innerText()).includes('Reguła ACL'));
+    console.log(`PASS demo UI scenario: ${id}`);
+  }
+  await page.getByRole('button', { name: 'Zamknij symulację', exact: true }).click();
+  await page.getByRole('button', { name: 'Diagnostyka', exact: true }).click();
+  assert.equal(await dialog().locator('.diagnostic-item').count(), 0);
+  await dialog().getByRole('button', { name: 'Zamknij', exact: true }).click();
+  console.log(
+    'PASS updated demo: example menu, printer, PoE budget, recording, isolation, diagnostics',
   );
   assert.deepEqual(errors, [], 'Browser errors');
   console.log(`UI ACCEPTANCE PASSED (${preview ? 'production preview' : 'npm run dev'})`);

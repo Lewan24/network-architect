@@ -152,6 +152,19 @@ describe('device behavior audit', () => {
   });
 });
 
+// These fixtures intentionally extend demo trunks; configure both independent ends.
+function configureTrunk(n: Network, link: Network['links'][number], vlans: number[]) {
+  link.mode = 'trunk';
+  link.allowedVlans = vlans;
+  for (const side of ['a', 'b'] as const) {
+    const port = n.devices
+      .find((d) => d.id === link[side])!
+      .ports!.find((p) => p.id === link[`${side}PortId`])!;
+    port.mode = 'trunk';
+    port.nativeVlan = 20;
+    port.allowedVlans = [...vlans];
+  }
+}
 describe('VM VLAN routing audit', () => {
   it('routes between guest VLANs only through the configured router', () => {
     const n = createDemoNetwork();
@@ -160,13 +173,22 @@ describe('VM VLAN routing audit', () => {
     const uplink = n.links.find(
       (l) => [l.a, l.b].includes('demo-server-switch') && [l.a, l.b].includes('demo-firewall'),
     )!;
-    uplink.mode = 'trunk';
-    uplink.allowedVlans = [10, 20];
+    configureTrunk(n, uplink, [10, 20]);
     const hostUplink = n.links.find(
       (l) => [l.a, l.b].includes('demo-server-switch') && [l.a, l.b].includes('demo-hyperv'),
     )!;
-    hostUplink.mode = 'trunk';
-    hostUplink.allowedVlans = [10, 20];
+    configureTrunk(n, hostUplink, [10, 20]);
+    n.devices
+      .find((d) => d.id === 'demo-firewall')!
+      .rules.unshift({
+        id: 'test-vm-routing',
+        source: 'device:demo-docker',
+        destination: 'device:demo-app',
+        protocol: 'ICMP',
+        port: '*',
+        ingress: 'lan',
+        action: 'allow',
+      });
     guest.vlan = 10;
     guest.ip = '192.168.10.250';
     const probe: Probe = {
@@ -224,23 +246,26 @@ describe('DHCP and wireless behavior audit', () => {
     ap.ipMode = 'static';
     ap.ip = '192.168.20.250';
     delete ap.lease;
-    n.links = n.links.filter(
-      (l) =>
-        !((l.a === ap.id && l.b === 'demo-firewall') || (l.b === ap.id && l.a === 'demo-firewall')),
-    );
+    n.links = n.links.filter((l) => !([l.a, l.b].includes(ap.id) && l.cable !== 'wireless'));
     n.devices.find((d) => d.id === 'demo-server-switch')!.allowedVlans = [20, 40];
     const upstream = n.links.find(
       (l) => [l.a, l.b].includes('demo-server-switch') && [l.a, l.b].includes('demo-firewall'),
     )!;
-    upstream.mode = 'trunk';
-    upstream.allowedVlans = [20, 40];
+    configureTrunk(n, upstream, [20, 40]);
     n.links.push({
       id: 'ap-uplink',
       a: ap.id,
+      aPortId: 'eth0',
       b: 'demo-server-switch',
+      bPortId: 'eth10',
       mode: 'trunk',
       allowedVlans: [20, 40],
     });
+    configureTrunk(
+      n,
+      n.links.find((l) => l.id === 'ap-uplink')!,
+      [20, 40],
+    );
     const client = n.devices.find((d) => d.id === 'demo-staff-client')!;
     client.ip = '';
     delete client.lease;
@@ -264,7 +289,11 @@ describe('DHCP and wireless behavior audit', () => {
         checkReply: true,
       }).ok,
     ).toBe(true);
-    n.links.find((l) => l.id === 'ap-uplink')!.allowedVlans = [20];
+    configureTrunk(
+      n,
+      n.links.find((l) => l.id === 'ap-uplink')!,
+      [20],
+    );
     expect(reconcileDhcp(n).devices.find((d) => d.id === client.id)?.lease).toBeUndefined();
   });
 });
