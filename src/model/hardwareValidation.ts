@@ -8,6 +8,7 @@ const positive = (n: unknown, max: number) =>
   typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= max;
 const text = (s: unknown) => typeof s === 'string' && !!s.trim() && s.length <= 80;
 export function validatePort(p: Port) {
+  if (p.dot1x !== undefined && typeof p.dot1x !== 'boolean') throw Error('802.1X must be boolean.');
   if (
     !p ||
     !text(p.id) ||

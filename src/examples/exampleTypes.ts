@@ -9,7 +9,8 @@ export type ExampleScenario = {
 export type ExampleSection = {
   label: string;
   target: string;
-  tab?: 'general' | 'ports' | 'acl' | 'nat' | 'routing' | 'networks' | 'interfaces' | 'dns';
+  tab?:
+    'radius' | 'general' | 'ports' | 'acl' | 'nat' | 'routing' | 'networks' | 'interfaces' | 'dns';
 };
 export type NetworkExample = {
   id: string;

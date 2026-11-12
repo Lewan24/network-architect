@@ -15,11 +15,11 @@ function build() {
   const phone = b.host('phone', 'mobile-phone', 10, undefined, 120, 760, 'Telefon pracownika');
   b.connect(ap, phone, 10);
   const dns = b.dns(20, 1040, 500);
-  const nas = b.endpoint('files', 'server', 20, 20, 1260, 620, 'Pliki / aplikacja', [
+  const nas = b.endpoint('files', 'mini-server', 20, 20, 1260, 620, 'Pliki / aplikacja', [
     svc(445, 'SMB'),
     svc(443, 'Portal firmowy'),
   ]);
-  const nvr = b.endpoint('nvr', 'server', 20, 40, 1040, 760, 'Rejestrator NVR', [
+  const nvr = b.endpoint('nvr', 'nvr', 20, 40, 1040, 760, 'Rejestrator NVR', [
     svc(443, 'Monitoring'),
   ]);
   const printer = b.endpoint('printer', 'printer', 60, 20, 650, 600, 'Drukarka IPP');
@@ -36,7 +36,7 @@ function build() {
   }
   const guestAP = b.endpoint('guest-ap', 'accesspoint', 50, 2, 280, 1020, 'AP gości');
   guestAP.ssid = 'Firma-Guest';
-  const guest = b.host('guest', 'workstation', 50, undefined, 100, 1190, 'Gość');
+  const guest = b.host('guest', 'laptop', 50, undefined, 100, 1190, 'Gość');
   b.connect(guestAP, guest, 50);
   const guestDns = b.endpoint('guest-dns', 'dns', 50, 53, 460, 1190, 'DNS gości');
   guestDns.dnsRecords = [{ id: 'public', name: 'internet.example', address: b.internet.ip }];
@@ -67,8 +67,7 @@ export const smallBusiness: NetworkExample = {
   name: 'Mała firma · bezpieczny start',
   category: 'Projekt',
   level: 'Podstawy',
-  description:
-    '17 urządzeń: administracja, pracownicy, pliki, drukarka, kamery PoE i odizolowani goście.',
+  description: 'Administracja, pracownicy, pliki, drukarka, kamery PoE i odizolowani goście.',
   objectives: [
     'Podziel sieć według ról, nie tylko według pokoi.',
     'Zezwalaj na konkretne usługi, potem blokuj inne sieci prywatne.',

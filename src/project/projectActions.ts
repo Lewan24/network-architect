@@ -39,12 +39,31 @@ export function createNetworkDevice(network: Network, kind: Kind, point: Point):
     rules: [],
     services: defaultServices(kind),
   };
+  if (kind === 'rack') {
+    device.rack = { heightU: 42, mounts: [] };
+    device.ipMode = 'static';
+    device.vlan = 0;
+  }
   if (supportsAcl) device.defaultAcl = 'deny';
   if (supportsEdgeRole) device.edgeRole = kind === 'gateway' ? 'edge' : 'internal';
   if (kind === 'gateway') {
     device.wanIp = unusedStaticAddress(network, '203.0.113');
     device.outboundNat = true;
   }
+  if (kind === 'radius') device.radius = { users: [], clients: [] };
+  if (kind === 'iot') {
+    device.platform = 'Raspberry Pi OS';
+    device.powerWatts = 8;
+  }
+  if (kind === 'laptop') device.platform = 'Windows / Linux';
+  if (kind === 'mini-server') {
+    device.platform = 'Linux';
+    device.serverRole = 'server';
+    device.powerWatts = 35;
+  }
+  if (kind === 'nvr') device.recorder = { channels: 8, storageTb: 4, retentionDays: 30 };
+  if (kind === 'ups')
+    device.ups = { capacityVa: 1500, capacityWatts: 900, loadWatts: 300, runtimeMinutes: 15 };
   if (kind === 'vm') device.hostId = network.devices.find(isHypervisor)?.id || '';
   device.ports = defaultPorts(device);
   return device;
@@ -71,7 +90,7 @@ export function duplicateNetworkDevice(network: Network, device: Device): Device
   let address = '';
   if (
     !device.interfaces?.length &&
-    device.kind !== 'switch-unmanaged' &&
+    !['switch-unmanaged', 'rack'].includes(device.kind) &&
     device.ipMode !== 'auto'
   ) {
     address = device.vlan
@@ -103,6 +122,7 @@ export function duplicateNetworkDevice(network: Network, device: Device): Device
     id: crypto.randomUUID(),
     name: `${device.name.slice(0, 32)} — kopia`,
     lease: undefined,
+    ...(device.rack ? { rack: { ...device.rack, mounts: [] } } : {}),
     interfaces,
     ip: interfaces?.[0].ip ?? address,
     ipMode: interfaces?.[0].ipMode ?? device.ipMode,
@@ -114,8 +134,25 @@ export function duplicateNetworkDevice(network: Network, device: Device): Device
 /** A virtual-link removal detaches its guest. Removing a host keeps the guest devices. */
 export function removeNetworkObject(network: Network, id: string): Network {
   const detachedGuestId = id.startsWith('virtual:') ? id.slice(8) : null;
+  const removedSession = network.devices.find((d) => d.id === id)?.accessSession;
   return {
     ...network,
+    ...(removedSession?.accounting === 'recorded'
+      ? {
+          radiusEvents: [
+            ...(network.radiusEvents || []),
+            {
+              time: Date.now(),
+              deviceId: id,
+              username: removedSession.username,
+              nasId: removedSession.nasId,
+              serverId: removedSession.serverId,
+              type: 'accounting-stop' as const,
+              message: 'Usunięto klienta: lokalne zakończenie sesji modelu.',
+            },
+          ].slice(-200),
+        }
+      : {}),
     vlans: network.vlans.map((vlan) => ({
       ...vlan,
       ...(vlan.gatewayDeviceId === id ? { gatewayDeviceId: '' } : {}),
@@ -126,6 +163,33 @@ export function removeNetworkObject(network: Network, id: string): Network {
       .filter((device) => device.id !== id)
       .map((device) => ({
         ...device,
+        ...(device.radius
+          ? {
+              radius: {
+                ...device.radius,
+                clients: device.radius.clients.filter((c) => c.nasId !== id),
+                users: device.radius.users.map((u) => ({
+                  ...u,
+                  ...(u.allowedNasIds
+                    ? {
+                        allowedNasIds: u.allowedNasIds.filter((nasId) => nasId !== id),
+                        ...(u.allowedNasIds.length && u.allowedNasIds.every((nasId) => nasId === id)
+                          ? { authorized: false }
+                          : {}),
+                      }
+                    : {}),
+                })),
+              },
+            }
+          : {}),
+        ...(device.radiusNas?.serverId === id
+          ? { radiusNas: { ...device.radiusNas, serverId: '' } }
+          : {}),
+        ...(device.rack
+          ? {
+              rack: { ...device.rack, mounts: device.rack.mounts.filter((m) => m.deviceId !== id) },
+            }
+          : {}),
         ...(device.hostId === id || device.id === detachedGuestId ? { hostId: '' } : {}),
         ...(device.routes
           ? { routes: device.routes.filter((route) => route.nextHopId !== id) }

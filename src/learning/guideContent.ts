@@ -1,5 +1,17 @@
 import type { LabTopic } from '../examples/miniLabs';
 export const sources = {
+  radius: {
+    title: 'RFC 2865: RADIUS Authentication',
+    url: 'https://www.rfc-editor.org/rfc/rfc2865',
+  },
+  radiusVlan: {
+    title: 'RFC 3580: 802.1X i przydzielanie VLAN',
+    url: 'https://www.rfc-editor.org/rfc/rfc3580',
+  },
+  radiusAccounting: {
+    title: 'RFC 2866: RADIUS Accounting',
+    url: 'https://www.rfc-editor.org/rfc/rfc2866',
+  },
   proxmox: {
     title: 'Proxmox VE: interfejs administracyjny',
     url: 'https://pve.proxmox.com/pve-docs/pve-admin-guide.html#chapter_gui',
@@ -154,6 +166,27 @@ export const lessons: Lesson[] = [
       'Zostaw zapas dla rozbudowy i rzeczywistych wymagań sprzętu. Model nie jest pomiarem mocy, strat optycznych ani BER; dobór modułu i zasilania potwierdza dokumentacja konkretnego urządzenia. UPS i awarie instalacji elektrycznej nie są tu jeszcze emulowane.',
     sourceKeys: ['poe'],
   },
+  {
+    id: 'radius',
+    title: '7. RADIUS: użytkownik, autoryzacja i VLAN',
+    lead: 'Klient 802.1X rozmawia z NAS (AP lub switchem). To NAS kontaktuje się z RADIUS, a po Access-Accept wpuszcza użytkownika do przyznanego VLAN-u.',
+    problem:
+      'Laptop zna login student, ale ma błędne hasło. Mimo sprawnych kabli i DHCP port pozostaje nieautoryzowany i klient nie uzyskuje dostępu.',
+    solution:
+      'W wariancie poprawionym hasło vlan-demo pasuje do konta student. NAS ma zgodny shared secret i jest na liście zaufanych klientów. Użytkownik otrzymuje VLAN 20 oraz adres z jego puli DHCP.',
+    steps: [
+      'Wczytaj wariant z błędem. Otwórz laptop Klient → RADIUS / 802.1X i zobacz profil oraz Access-Reject.',
+      'Na serwerze RADIUS porównaj konto student, zgodę na dostęp, VLAN 20 i dozwolony NAS. Hasła w laboratorium są danymi testowymi.',
+      'Na switchu sprawdź NAS: serwer, shared secret i accounting. Port laptopa ma 802.1X; uplink oraz port RADIUS nie mogą wymagać logowania klienta.',
+      'Wczytaj wariant poprawiony i wyślij HTTPS do usługi. Sprawdź Access-Accept, nowy VLAN, DHCP i dziennik Accounting-Start.',
+      'Wyłącz konto, zmień shared secret lub zablokuj UDP/1812 w ACL: dostęp znika także przy wcześniej ważnej dzierżawie. Wyłączenie samego UDP/1813 blokuje accounting, ale nie poprawne logowanie.',
+      'W gałęzi AAA każdego projektu porównaj laptopy admin / admin-demo i pracownik / staff-demo na tym samym SSID oraz Raspberry Pi raspberry / iot-demo na przewodowym porcie 802.1X.',
+      'Otwórz szafę RACK → Podgląd szafy. Serwer RADIUS, mini serwer, NVR i UPS mają przypisane pozycje i wysokości U; montaż nie tworzy połączenia sieciowego ani zasilania.',
+    ],
+    takeaway:
+      'Uwierzytelnianie sprawdza tożsamość, autoryzacja określa zgodę i VLAN, a accounting opisuje sesję. Nadal potrzebujesz trunków, DHCP, bramy i ACL. Model przelicza decyzję na bieżąco; nie emuluje wymiany EAP/TLS, certyfikatów, AD, MAB ani czasów reautoryzacji. Dane testowe są jawne w lokalnym projekcie i JSON.',
+    sourceKeys: ['radius', 'radiusVlan', 'radiusAccounting'],
+  },
 ];
 export const planningSteps = [
   [
@@ -178,7 +211,7 @@ export const planningSteps = [
   ],
   [
     'Wprowadź politykę i zarządzanie',
-    'Stosuj minimalne zezwolenia, oddziel zarządzanie i ogranicz WAN do jawnie publikowanych usług. Poza modelem potrzebne są również aktualizacje, kopie konfiguracji, uwierzytelnianie, monitoring i logowanie.',
+    'Stosuj minimalne zezwolenia, oddziel zarządzanie i ogranicz WAN do jawnie publikowanych usług. Ustaw konta RADIUS, zaufane NAS oraz VLAN-y ról. Sprawdź odrzucenie hasła, cofnięcie autoryzacji i accounting. Na rzeczywistym sprzęcie potrzebne są także certyfikaty, aktualizacje i kopie konfiguracji.',
   ],
   [
     'Odbierz projekt testami',
@@ -187,6 +220,22 @@ export const planningSteps = [
 ];
 
 export const glossary = [
+  [
+    'RADIUS / AAA',
+    'Authentication weryfikuje konto, Authorization określa zgodę i VLAN, Accounting rejestruje zdarzenia sesji. Model sprawdza transport UDP/1812 i UDP/1813.',
+  ],
+  [
+    '802.1X / NAS / supplicant',
+    'Supplicant to klient logujący się do sieci; NAS to zaufany AP lub switch egzekwujący decyzję RADIUS. VLAN użytkownika musi być przenoszony przez uplink.',
+  ],
+  [
+    'Szafa RACK / U',
+    'Pasywny obiekt montażowy. 1U to jednostka wysokości sprzętu; UPS może zajmować np. 2U. W podglądzie nie mogą nakładać się pozycje montażowe.',
+  ],
+  [
+    'IoT, mini serwer, NVR i UPS',
+    'IoT/Raspberry Pi i laptop mają Ethernet oraz Wi-Fi; mini serwer uruchamia usługi lub VM, NVR opisuje archiwum monitoringu, UPS udostępnia SNMP i parametry planowania zasilania. Nagrania i bateria nie są symulowane w czasie.',
+  ],
   [
     'VLAN',
     'Oddzielna domena warstwy 2 (ramki i broadcast). Sama nie określa, kto ma dostęp do usług po routingu.',

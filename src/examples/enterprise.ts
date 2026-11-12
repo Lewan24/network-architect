@@ -20,9 +20,16 @@ function build() {
     ...Array.from({ length: 24 }, (_, i) => makePort(`eth${i + 24}`, 'rj45', 99)),
   ];
   const admin = b.endpoint('admin', 'workstation', 99, 10, 710, 250, 'Administrator');
-  const bastion = b.endpoint('bastion', 'server', 99, 20, 1090, 250, 'Bastion administracyjny', [
-    svc(22, 'SSH administracji'),
-  ]);
+  const bastion = b.endpoint(
+    'bastion',
+    'mini-server',
+    99,
+    20,
+    1090,
+    250,
+    'Bastion administracyjny',
+    [svc(22, 'SSH administracji')],
+  );
   Array.from({ length: 6 }, (_, i) =>
     b.endpoint(
       `staff${i + 1}`,
@@ -38,8 +45,10 @@ function build() {
   const app = b.endpoint('app', 'server', 20, 10, 1050, 500, 'Serwer aplikacji', [
     svc(8443, 'Backend aplikacji'),
   ]);
-  const nas = b.endpoint('nas', 'server', 20, 30, 850, 710, 'Serwer plików', [svc(445, 'SMB')]);
-  const nvr = b.endpoint('nvr', 'server', 20, 40, 1050, 710, 'Serwer NVR', [svc(443, 'Panel NVR')]);
+  const nas = b.endpoint('nas', 'mini-server', 20, 30, 850, 710, 'Serwer plików', [
+    svc(445, 'SMB'),
+  ]);
+  const nvr = b.endpoint('nvr', 'nvr', 20, 40, 1050, 710, 'Serwer NVR', [svc(443, 'Panel NVR')]);
   const hv = b.endpoint('host', 'server', 20, 60, 1250, 500, 'Host KVM', [svc(443, 'Panel hosta')]);
   hv.serverRole = 'hypervisor';
   hv.hypervisorVendor = 'KVM';
@@ -187,7 +196,7 @@ export const enterprise: NetworkExample = {
   category: 'Projekt',
   level: 'Zaawansowany',
   description:
-    '35 urządzeń: DMZ, dwa firewalle, chroniona baza, kopie, pracownicy, goście, drukarki i CCTV PoE.',
+    'DMZ, dwa firewalle, chroniona baza, kopie, pracownicy, goście, drukarki i CCTV PoE.',
   objectives: [
     'Oddziel publiczny reverse proxy od aplikacji i bazy.',
     'Do danych przepuszczaj tylko aplikację przez dwie zapory; przetestuj także drogę powrotną.',

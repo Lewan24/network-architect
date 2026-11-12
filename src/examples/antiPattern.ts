@@ -5,14 +5,14 @@ function build() {
     [10, 'Wszyscy w jednym VLAN-ie'],
   ]);
   b.endpoint('employee', 'workstation', 10, undefined, 170, 520, 'Pracownik');
-  const files = b.endpoint('files', 'server', 10, 20, 420, 700, 'Pliki i administracja', [
+  const files = b.endpoint('files', 'mini-server', 10, 20, 420, 700, 'Pliki i administracja', [
     svc(445, 'SMB'),
     svc(22, 'SSH'),
     svc(443, 'Panel'),
   ]);
   const ap = b.endpoint('guest-ap', 'accesspoint', 10, 2, 880, 520, 'AP gości w LAN');
   ap.ssid = 'Guest';
-  const guest = b.host('guest', 'workstation', 10, undefined, 1100, 710, 'Gość z dostępem do LAN');
+  const guest = b.host('guest', 'laptop', 10, undefined, 1100, 710, 'Gość z dostępem do LAN');
   b.connect(ap, guest, 10);
   b.endpoint('camera', 'camera', 10, 30, 690, 880, 'Kamera w sieci biurowej');
   b.endpoint('printer', 'printer', 10, 40, 160, 880, 'Drukarka w LAN');

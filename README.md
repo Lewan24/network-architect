@@ -28,7 +28,7 @@ Test kontrolek w prawdziwej przeglądarce: `npx playwright install chromium`, na
 
 ## Nauka i projekty wzorcowe
 
-**Poradnik** na górnym pasku zawiera plan projektowania, praktyczne wskazówki ze źródłami i sześć par małych laboratoriów: VLAN, trunk, ACL, DHCP/DNS, NAT i PoE. Każda para pokazuje problem i poprawiony projekt, instrukcję, konkretną konfigurację oraz oczekiwany test pakietu. Wczytanie można cofnąć.
+**Poradnik** na górnym pasku zawiera plan projektowania, praktyczne wskazówki ze źródłami i siedem par małych laboratoriów: VLAN, trunk, ACL, DHCP/DNS, NAT, PoE i RADIUS/802.1X. Każda para pokazuje problem i poprawiony projekt, instrukcję, konkretną konfigurację oraz oczekiwany test pakietu. Wczytanie można cofnąć.
 
 W menu **Przykład** są też: mała firma, home lab z Proxmox i IoT, duża firma z DMZ i dwiema zaporami oraz celowo błędny antywzorzec. Projekty mają własne scenariusze symulacji. [Opis projektów](docs/EXAMPLE_PROJECTS.md) i [poradnik w Markdown](docs/NETWORK_GUIDE.md).
 
@@ -39,7 +39,9 @@ Dialogi mają karty ustawień, oznaczenia kolorystyczne i czytelniejsze etykiety
 - **Interaktywne gniazda:** klikalny panel z nazwami i stanami portów (zielony: aktywny link, szary: wolny/brak linku, czarny: wyłączony). Łączenie urządzeń obejmuje wybór portu początkowego i docelowego oraz rodzaju i długości kabla. Zajęte i niezgodne gniazda są blokowane.
 - **Porty i interfejsy:** skończona liczba gniazd, nazwy i stan administracyjny, osobne access/trunk/native VLAN na obu końcach, prędkości i duplex. Host może mieć wiele kart z własnym IP/DHCP, maską, bramą, metryką i DNS; samo dodanie karty nie włącza routingu. Urządzenia L3 obsługują też jawne statyczne interfejsy przypisane do portów.
 - **Warstwa fizyczna:** RJ45, SFP/SFP+, Cat 5e/6/6A, OM3/OM4/OS2 i pasywny DAC; moduły SX/LX/SR/LR, długości i zgodność profili prędkości. Równoległe kable mają osobne tory i ślad pakietu.
-- **PoE:** standard portu PSE, całkowity budżet oraz moc wymagana przez PD. Niedobór budżetu lub niewłaściwe medium blokuje dostępność odbiornika, bez zmiany zapisanej flagi online. Lokalny zasilacz jest na tym etapie dostępny; nie ma jeszcze UPS-ów i awarii w czasie.
+- **PoE:** standard portu PSE, całkowity budżet oraz moc wymagana przez PD. Niedobór budżetu lub niewłaściwe medium blokuje dostępność odbiornika, bez zmiany zapisanej flagi online. UPS ma kartę sieciową SNMP/HTTPS i parametry planowania, bez rozładowywania baterii w czasie.
+- **RADIUS / 802.1X:** konta i autoryzacja, zaufane AP/switche NAS, shared secret, Enterprise Wi-Fi i kontrolowane porty Ethernet. Access-Accept nadaje VLAN przed DHCP. Sprawdzane są usługa UDP/1812, ACL, trasa odpowiedzi i opcjonalny accounting UDP/1813. [Konfiguracja, konta testowe i ograniczenia](docs/RADIUS.md).
+- **Sprzęt i RACK:** osobne laptopy, IoT/Raspberry Pi, mini serwery, NVR, UPS i serwery rackowe. Szafa ma wysokość U, kontrolowany montaż, opisy i osobny podgląd; relacje montażowe nie są kablami sieciowymi.
 - **Diagnostyka:** błędy i ostrzeżenia z przejściem do właściwego kabla/urządzenia, problemy VLAN, IP, bramy, DHCP, statycznego next-hop, fizycznego łącza i PoE. Ślad testu pokazuje porty, kabel, regułę ACL, NAT i limit profilu łącza.
 
 Instrukcja, źródła, scenariusze testowe i ograniczenia: [Porty i diagnostyka](docs/PORTS_AND_DIAGNOSTICS.md).
@@ -73,7 +75,7 @@ Projekty bez listy VLAN-ów są migrowane: podsieci są wyprowadzane z adresów 
 
 ## Gotowe laboratorium
 
-Otwórz menu **Przykład**, wybierz **Biuro, serwery i Wi-Fi**, następnie otwórz **Symulację** i wybierz scenariusz. Rejestr `networkExamples` w `src/examples/catalog.ts` pozwala dodawać kolejne projekty do menu. Projekt zawiera 22 urządzenia: Internet → router brzegowy → firewall oraz VLAN 10 (administracja), 20 (serwery), 30 (CCTV), 40 (pracownicy LAN/Wi-Fi), 50 (Wi-Fi gości), 60 (drukarka) i 99 (tranzyt). Firewall zapewnia DHCP, routing i izolację kamer. Są DNS, Hyper-V z dwiema VM, NAS, NVR, dwie kamery DHCP/PoE oraz drukarka. [Topologia, polityki i scenariusze odbioru](docs/DEMO_NETWORK.md).
+Otwórz menu **Przykład**, wybierz **Biuro, serwery i Wi-Fi**, następnie otwórz **Symulację** i wybierz scenariusz. Rejestr `networkExamples` w `src/examples/catalog.ts` pozwala dodawać kolejne projekty do menu. Projekt zawiera 32 urządzenia: Internet → router brzegowy → firewall oraz VLAN 10 (administracja), 20 (serwery), 30 (CCTV), 40 (pracownicy LAN/Wi-Fi), 50 (Wi-Fi gości), 60 (drukarka) i 99 (tranzyt). Firewall zapewnia DHCP, routing i izolację kamer. Są DNS, Hyper-V z dwiema VM, NAS, NVR, dwie kamery DHCP/PoE oraz drukarka. [Topologia, polityki i scenariusze odbioru](docs/DEMO_NETWORK.md).
 
 AP `Firma-Staff`, laptop Wi-Fi i przewodowy laptop pracownika korzystają z VLAN 40. Mają dostęp do wskazanych usług aplikacji, NAS i NVR, drukowania oraz Internetu. Panel NPM, Hyper-V, panel drukarki i bezpośrednie kamery są dostępne dla administratora, a nie dla pracowników. AP `Firma-Guest`, laptop gościa i osobny DNS gościnny są w VLAN 50. Reguły firewalla blokują gościom wszystkie trzy prywatne zakresy IPv4 przed regułą pozwalającą na Internet. DNS gościnny nie udostępnia stref LAN; rekord demonstracyjny `internet.example` wskazuje obiekt Internet. Izolacja dotyczy dostępu do pozostałych sieci, a nie izolacji klientów między sobą wewnątrz jednego SSID. AP jest mostem modelowym, bez radiowej propagacji.
 
@@ -109,4 +111,4 @@ Projekt pozostaje na urządzeniu użytkownika. Eksport JSON pozwala przenosić g
 
 ## Audyt modelu urządzeń
 
-[Raport audytu i źródła](docs/DEVICE_BEHAVIOR_AUDIT.md) opisują wszystkie 15 rodzajów urządzeń, poprawione przypadki i granice symulacji. Testy obejmują też przełączanie L2 na switchu L3, niezależny VLAN zarządzania, adresy SVI, DHCP bez kradzieży ważnych dzierżaw, DNS przez TCP oraz konflikty IP.
+[Raport audytu i źródła](docs/DEVICE_BEHAVIOR_AUDIT.md) opisują bazowe urządzenia i rozszerzenia; [opis RADIUS](docs/RADIUS.md) wyjaśnia nowe AAA. Testy obejmują też przełączanie L2 na switchu L3, niezależny VLAN zarządzania, adresy SVI, DHCP bez kradzieży ważnych dzierżaw, DNS przez TCP, konflikty IP, konta RADIUS i dynamiczne VLAN-y.

@@ -106,7 +106,7 @@ describe('device behavior audit', () => {
     expect(result.path).not.toContain('internet-default');
     expect(result.reason).toContain('nie wskazuje');
   });
-  it.each(['server', 'dns', 'workstation', 'printer', 'camera', 'mobile-phone'] as const)(
+  it.each(['server', 'radius', 'dns', 'workstation', 'printer', 'camera', 'mobile-phone'] as const)(
     '%s is an endpoint and cannot bridge two other clients',
     (kind) => {
       const n = lab(kind);

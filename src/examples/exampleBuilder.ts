@@ -1,3 +1,4 @@
+import { modernInfrastructure } from './modernInfrastructure';
 import { defaultServices } from '../devices/deviceCatalog';
 import { defaultInternet } from '../model/internetModel';
 import { defaultPorts } from '../model/ports';
@@ -125,8 +126,10 @@ export class ExampleBuilder {
   }
   connect(a: Device, b: Device, vlan: number | number[]) {
     const wifi =
-      (a.kind === 'accesspoint' && ['workstation', 'mobile-phone'].includes(b.kind)) ||
-      (b.kind === 'accesspoint' && ['workstation', 'mobile-phone'].includes(a.kind));
+      (a.kind === 'accesspoint' &&
+        ['mobile-phone', 'workstation', 'laptop', 'iot'].includes(b.kind)) ||
+      (b.kind === 'accesspoint' &&
+        ['mobile-phone', 'workstation', 'laptop', 'iot'].includes(a.kind));
     const free = (d: Device): Port => {
       const p = d.ports!.find(
         (p) =>
@@ -190,6 +193,7 @@ export class ExampleBuilder {
     return dns;
   }
   finish(disableUnused = true) {
+    modernInfrastructure(this.network, this.prefix);
     if (disableUnused)
       for (const d of this.network.devices)
         for (const p of d.ports || []) {

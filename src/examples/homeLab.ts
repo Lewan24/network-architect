@@ -23,16 +23,14 @@ function build() {
     svc(8123, 'Home Assistant'),
   ]);
   app.hostId = hv.id;
-  const nas = b.endpoint('nas', 'server', 20, 30, 960, 800, 'NAS domowy', [
+  const nas = b.endpoint('nas', 'mini-server', 20, 30, 960, 800, 'NAS domowy', [
     svc(445, 'SMB'),
     svc(443, 'Panel NAS'),
   ]);
-  const iot = b.endpoint('iot', 'workstation', 30, undefined, 220, 1080, 'Panel IoT', [
+  const iot = b.endpoint('iot', 'iot', 30, undefined, 220, 1080, 'Panel IoT', [
     svc(443, 'Sterowanie'),
   ]);
-  b.endpoint('sandbox', 'workstation', 40, undefined, 900, 1080, 'Maszyna testowa', [
-    svc(22, 'SSH'),
-  ]);
+  b.endpoint('sandbox', 'laptop', 40, undefined, 900, 1080, 'Maszyna testowa', [svc(22, 'SSH')]);
   dns.dnsRecords = [
     { id: 'home', name: 'ha.home.arpa', deviceId: app.id },
     { id: 'nas', name: 'nas.home.arpa', deviceId: nas.id },
@@ -55,7 +53,7 @@ export const homeLab: NetworkExample = {
   name: 'Home lab · dom, IoT i Proxmox',
   category: 'Projekt',
   level: 'Średni',
-  description: '13 urządzeń: hypervisor z VM, NAS, prywatny DNS, IoT i odseparowana piaskownica.',
+  description: 'Hypervisor z VM, NAS, prywatny DNS, IoT i odseparowana piaskownica.',
   objectives: [
     'Oddziel testy i IoT od komputerów domowych.',
     'Panel hypervisora udostępniaj administratorowi, nie każdemu domownikowi.',

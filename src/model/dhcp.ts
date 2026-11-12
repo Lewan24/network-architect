@@ -1,3 +1,4 @@
+import { projectNetworkAccess } from './radius';
 import {
   connectedNextHop,
   expandInterfaceClients,
@@ -97,8 +98,14 @@ function relayPath(
     if (
       id !== from.id &&
       [
+        'iot',
+        'laptop',
+        'nvr',
+        'mini-server',
+        'ups',
         'server',
         'dns',
+        'radius',
         'camera',
         'workstation',
         'mobile-phone',
@@ -317,6 +324,12 @@ function reconcileClientNetwork(network: Network, now: number, renewId?: string)
   return next;
 }
 export function dhcpStatus(network: Network, client: Device, now = Date.now()): DhcpStatus {
+  if (client.accessSession && client.accessSession.state !== 'accepted')
+    return {
+      state: 'waiting',
+      path: client.accessSession.authPath,
+      message: client.accessSession.reason,
+    };
   const discovery = discoverDhcp(network, client);
   if (client.ipMode === 'auto' && client.lease && client.lease.expiresAt > now && client.ip) {
     return {
@@ -336,6 +349,8 @@ export function dhcpStatus(network: Network, client: Device, now = Date.now()): 
 
 export function reconcileDhcp(network: Network, now = Date.now(), renewId?: string): Network {
   network = materializeHardware(network);
+  if (network.devices.some((d) => d.radiusNas)) network = reconcileClientNetwork(network, now);
+  network = projectNetworkAccess(network, now);
   const expanded = expandInterfaceClients(network);
   const renewed = reconcileClientNetwork(
     expanded.network,

@@ -1,6 +1,7 @@
+import { reconcileDhcp } from '../model/dhcp';
 import { ExampleBuilder, allow, svc, token } from './exampleBuilder';
 import type { NetworkExample } from './exampleTypes';
-export type LabTopic = 'segmentation' | 'trunk' | 'acl' | 'dhcp' | 'nat' | 'poe';
+export type LabTopic = 'segmentation' | 'trunk' | 'acl' | 'dhcp' | 'nat' | 'poe' | 'radius';
 export const labNames: Record<LabTopic, string> = {
   segmentation: 'VLAN i granica L2',
   trunk: 'Trunk i allowed VLAN',
@@ -8,6 +9,7 @@ export const labNames: Record<LabTopic, string> = {
   dhcp: 'DHCP i DNS',
   nat: 'NAT a publikacja usług',
   poe: 'PoE: moc PSE i PD',
+  radius: 'RADIUS: logowanie i dynamiczny VLAN',
 };
 export function miniLab(topic: LabTopic, fixed: boolean): NetworkExample {
   const id = `lesson-${topic}-${fixed ? 'fixed' : 'broken'}`;
@@ -18,16 +20,16 @@ export function miniLab(topic: LabTopic, fixed: boolean): NetworkExample {
     ]);
     const source = b.endpoint(
       'client',
-      'workstation',
+      'laptop',
       10,
-      topic === 'dhcp' ? undefined : 10,
+      topic === 'dhcp' || topic === 'radius' ? undefined : 10,
       160,
       500,
       'Klient',
     );
     const service = b.endpoint(
       'service',
-      topic === 'poe' ? 'camera' : 'server',
+      topic === 'poe' ? 'camera' : 'mini-server',
       topic === 'segmentation' && !fixed ? 10 : 20,
       20,
       1000,
@@ -85,7 +87,35 @@ export function miniLab(topic: LabTopic, fixed: boolean): NetworkExample {
       const wire = b.network.links.find((l) => l.b === service.id)!;
       b.core.ports!.find((p) => p.id === wire.aPortId)!.poe = 'at';
     }
-    return b.finish();
+    const result = b.finish();
+    if (topic === 'radius') {
+      const radius = result.devices.find((d) => d.id === `${id}-aaa-radius`)!;
+      const nas = result.devices.find((d) => d.id === `${id}-core`)!;
+      const client = result.devices.find((d) => d.id === `${id}-client`)!;
+      nas.radiusNas = {
+        serverId: radius.id,
+        secret: 'lesson-secret',
+        dynamicVlan: true,
+        accounting: true,
+      };
+      radius.radius!.clients.push({ nasId: nas.id, secret: 'lesson-secret' });
+      radius.radius!.users.push({
+        id: 'student',
+        username: 'student',
+        password: 'vlan-demo',
+        enabled: true,
+        authorized: true,
+        vlan: 20,
+        role: 'Laboratorium',
+        allowedNasIds: [nas.id],
+      });
+      const wire = result.links.find((l) => l.a === nas.id && l.b === client.id)!;
+      nas.ports!.find((p) => p.id === wire.aPortId)!.dot1x = true;
+      client.supplicant = { username: 'student', password: fixed ? 'vlan-demo' : 'bledne-haslo' };
+      for (const port of [1812, 1813]) allow(b.fw, token(nas), token(radius), 'UDP', String(port));
+      return reconcileDhcp(result);
+    }
+    return result;
   };
   const expected = topic === 'segmentation' || topic === 'acl' || topic === 'nat' ? !fixed : fixed;
   const probe =
@@ -114,9 +144,24 @@ export function miniLab(topic: LabTopic, fixed: boolean): NetworkExample {
     level: 'Krok po kroku',
     objectives: [],
     sections: [
+      ...(topic === 'radius'
+        ? [
+            {
+              label: 'Konta i polityki RADIUS',
+              target: `${id}-aaa-radius`,
+              tab: 'radius' as const,
+            },
+            { label: 'Profil logowania klienta', target: `${id}-client`, tab: 'radius' as const },
+          ]
+        : []),
       { label: 'Reguły zapory', target: `${id}-fw`, tab: topic === 'nat' ? 'nat' : 'acl' },
       { label: 'Porty i trunk', target: `${id}-core`, tab: 'ports' },
       { label: 'Adresacja i DHCP', target: 'zone:10' },
+      ...(topic !== 'radius'
+        ? [{ label: 'Konta i polityki RADIUS', target: `${id}-aaa-radius`, tab: 'radius' as const }]
+        : []),
+      { label: 'Laptop gałęzi AAA', target: `${id}-aaa-laptop`, tab: 'radius' as const },
+      { label: 'Szafa RACK i rozmieszczenie U', target: `${id}-aaa-rack` },
     ],
     intentionalProblems: !fixed,
     create,

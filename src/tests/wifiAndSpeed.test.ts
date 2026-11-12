@@ -71,7 +71,7 @@ describe('demo wireless isolation', () => {
     const second = networkExamples[0].create();
     first.devices[0].online = false;
     expect(second.devices[0].online).toBe(true);
-    expect(parseNetwork(JSON.stringify(second)).devices).toHaveLength(22);
+    expect(parseNetwork(JSON.stringify(second)).devices).toHaveLength(second.devices.length);
   });
 });
 describe('live animation speed', () => {

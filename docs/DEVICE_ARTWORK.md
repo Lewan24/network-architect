@@ -17,17 +17,17 @@ router: {
   height: 97.77,
 },
 server: {
-  src: '/devices/server.png',
-  x: -52.46,
-  y: -88.55,
-  width: 105.25,
-  height: 105.25,
+  src: '/devices/rack-server.png',
+  x: -56.59,
+  y: -74.19,
+  width: 113.18,
+  height: 113.18,
 },
 ```
 
-Obecny zestaw zawiera wyłącznie PNG; stare pliki SVG zostały usunięte. Wymiary powyżej odpowiadają obecnym grafikom. SVG lub WebP można nadal dodać, podając ścieżkę do nowego pliku zamiast PNG.
+Obecny zestaw zawiera wyłącznie PNG; stare pliki SVG zostały usunięte. `rack.png` jest ikoną szafy (wcześniej `server.png`), a `rack-server.png` ikoną serwera rackowego. Wpisy uwzględniają proporcje plików i widoczną bryłę po pominięciu niemal przezroczystych marginesów. SVG lub WebP można nadal dodać, podając ścieżkę do nowego pliku zamiast PNG.
 
-1. Umieść plik, np. `server.png`, w `public/devices/`.
+1. Umieść plik, np. `rack-server.png`, w `public/devices/`.
 2. Zmień `src` odpowiedniego wpisu w `src/devices/deviceArtwork.ts`.
 3. Dopasuj `x`, `y`, `width`, `height` do widocznej grafiki i jej przezroczystych marginesów.
 4. Sprawdź bibliotekę, dialog i planszę. Jeden wpis obsługuje wszystkie trzy miejsca.

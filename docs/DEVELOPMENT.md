@@ -1,5 +1,9 @@
 # Przewodnik po kodzie
 
+Rozszerzenie AAA: `src/model/radius.ts` ocenia uwierzytelnianie, autoryzację NAS/VLAN, accounting i zdarzenia; `RadiusEditor.tsx` konfiguruje konta, NAS i supplicantów. `reconcileDhcp` najpierw przygotowuje adresację infrastruktury, potem przelicza dostęp i dopiero przydziela adresy klientom. Wewnętrzne próby `controlPlane` używają tego samego silnika routingu/usług/ACL, ale bez ponownego wywoływania AAA/DHCP, co zapobiega rekurencji. `transferVlan` egzekwuje przypisany VLAN wyłącznie na kontrolowanym łączu, a uplinki nadal wymagają poprawnych trunków. Stan importowanej sesji nie jest dowodem autoryzacji.
+
+`modernInfrastructure.ts` dodaje gałąź AAA i nowe typy sprzętu do każdej fabryki przykładu, bez zmiany pierwotnego celu lekcji. `radius.test.ts` sprawdza odrzucenia, reautoryzację, VLAN/DHCP, ACL transportu, accounting, brak obejścia przez statyczne IP/import oraz usuwanie zależności. [Instrukcja RADIUS](./RADIUS.md).
+
 Projekt to aplikacja React + TypeScript działająca lokalnie w przeglądarce. Model sieci i silnik symulacji są niezależne od Reacta. Zapis projektu pozostaje zgodny z dotychczasowym JSON-em i kluczem `netweave-project` w localStorage.
 
 ## Od czego zacząć
@@ -101,7 +105,7 @@ Po `npm run build` można sprawdzić także produkcyjny pakiet: `npm run test:ui
 
 `PortPanel` jest wspólny dla edycji urządzenia, kabla i obu kroków łączenia. `portConnections.ts` waliduje wybrane końce przed atomowym dodaniem kabla; nie rezerwuj portu po samym wyborze pierwszego urządzenia. `PortConnectionDialog` pokazuje zgodność profilu i zapisuje dopiero po zatwierdzeniu obu końców. Test UI sprawdza również kolory/oznaczenia gniazd, zajętość, jawne końce, anulowanie, DAC i przypisanie VM.
 
-Fabryka `createDemoNetwork` definiuje 22 urządzenia, 7 VLAN-ów, jawne porty/trunki i 24 scenariusze. Polityki i wymagania przykładu: [DEMO_NETWORK.md](./DEMO_NETWORK.md). `demoAcceptance.test.ts` obejmuje uprawnienia, DHCP, PoE, awarie istniejących łączy i rozdzielenie obszarów. Przy zmianie polityk demo testy innych mechanizmów powinny jawnie skonfigurować własne wymagane zezwolenia/porty, zamiast polegać na szerokim permit w przykładzie.
+Fabryka `createDemoNetwork` definiuje 32 urządzenia, 7 VLAN-ów, jawne porty/trunki i 24 scenariusze. Polityki i wymagania przykładu: [DEMO_NETWORK.md](./DEMO_NETWORK.md). `demoAcceptance.test.ts` obejmuje uprawnienia, DHCP, PoE, awarie istniejących łączy i rozdzielenie obszarów. Przy zmianie polityk demo testy innych mechanizmów powinny jawnie skonfigurować własne wymagane zezwolenia/porty, zamiast polegać na szerokim permit w przykładzie.
 
 ## Przykłady i nauka
 

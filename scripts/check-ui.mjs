@@ -87,7 +87,7 @@ try {
   await page.goto(url);
   await page.locator('.network-device').first().waitFor();
   const original = await savedProject();
-  assert.equal(original.devices.length, 22);
+  assert.equal(original.devices.length, 32);
 
   if (!process.argv.includes('--learning-only')) {
     for (const [width, height] of [

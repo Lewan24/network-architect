@@ -1,3 +1,5 @@
+import { RadiusEditor } from './RadiusEditor';
+import { isRadiusNas, isSupplicant } from '../model/radius';
 import { SettingsSection } from '../components/SettingsSection';
 import { InterfacesEditor } from './InterfacesEditor';
 import { PortsEditor } from './PortsEditor';
@@ -11,6 +13,8 @@ import { DnsEditor, DnsResolvers } from './DnsEditor';
 import { NatEditor } from './NatEditor';
 import { DeviceNetworks } from './NetworkScopes';
 import { RoutingEditor } from './RoutingEditor';
+import { DeviceProfileEditor } from './DeviceProfileEditor';
+import { rackPlacement } from '../model/racks';
 import { ServicesEditor } from './ServicesEditor';
 import { kinds } from '../devices/deviceCatalog';
 import { dhcpStatus, reconcileDhcp } from '../model/dhcp';
@@ -30,6 +34,7 @@ import {
 } from '../model/network';
 import type { Device, Network, Vlan } from '../model/networkTypes';
 export type DeviceTab =
+  | 'radius'
   | 'ports'
   | 'interfaces'
   | 'general'
@@ -62,6 +67,7 @@ export function DeviceDialog({
   const [tab, setTab] = useState<DeviceTab>(initialTab);
   const [error, setError] = useState('');
   const unmanaged = draft.kind === 'switch-unmanaged';
+  const mounting = rackPlacement(network, device.id);
   const routing = isRoutingDevice(draft);
   const [draftVlans, setDraftVlans] = useState(() => structuredClone(network.vlans));
   const configNetwork = {
@@ -150,6 +156,9 @@ export function DeviceDialog({
     label: string;
   }[] = [
     { id: 'general', label: 'Urządzenie' },
+    ...(draft.kind === 'radius' || isRadiusNas(draft) || isSupplicant(draft)
+      ? [{ id: 'radius' as const, label: 'RADIUS / 802.1X' }]
+      : []),
     { id: 'ports', label: 'Porty i PoE' },
     ...(supportsInterfaces(draft) ? [{ id: 'interfaces' as const, label: 'Interfejsy IP' }] : []),
     ...(draft.kind === 'dns' || draft.dnsRecords !== undefined
@@ -187,6 +196,9 @@ export function DeviceDialog({
           </nav>
         )}
         <div className="dialog-body">
+          {tab === 'radius' && (
+            <RadiusEditor device={draft} network={configNetwork} patch={patch} />
+          )}
           {tab === 'ports' && <PortsEditor device={draft} network={configNetwork} patch={patch} />}
           {tab === 'interfaces' && (
             <InterfacesEditor
@@ -309,7 +321,7 @@ export function DeviceDialog({
                         </select>
                       </label>
                     )}
-                    {draft.kind === 'server' && (
+                    {['server', 'mini-server'].includes(draft.kind) && (
                       <>
                         <label className="field">
                           <span>Rola serwera</span>
@@ -363,6 +375,29 @@ export function DeviceDialog({
                       </label>
                     )}
                   </SettingsSection>
+                  <DeviceProfileEditor device={draft} patch={patch} />
+                  {mounting && (
+                    <SettingsSection
+                      title="Montaż w szafie RACK"
+                      description="Powiązanie montażowe niezależne od połączeń sieciowych."
+                    >
+                      <p>
+                        {mounting.cabinet.name} · U{mounting.mount.startU}–U
+                        {mounting.mount.startU + mounting.mount.heightU - 1} ·{' '}
+                        {mounting.mount.heightU}U
+                      </p>
+                      {mounting.mount.description && <p>{mounting.mount.description}</p>}
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={JSON.stringify(draft) !== JSON.stringify(device)}
+                        onClick={() => editRelated(mounting.cabinet.id)}
+                      >
+                        Otwórz układ szafy
+                      </button>
+                      <p className="field-hint">Przed otwarciem szafy zapisz zmiany urządzenia.</p>
+                    </SettingsSection>
+                  )}
                   <SettingsSection
                     title="Adresacja i dostęp do sieci"
                     tone="green"

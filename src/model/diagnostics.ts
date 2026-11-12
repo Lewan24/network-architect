@@ -31,6 +31,27 @@ export function diagnoseNetwork(network: Network): Diagnostic[] {
     });
   const hw = hardwareState(network);
   const active = operationalNetwork(network);
+  for (const d of network.devices) {
+    if (d.accessSession && d.accessSession.state !== 'accepted')
+      add({
+        code: 'radius-access-denied',
+        severity: 'error',
+        title: `${d.name}: dostęp 802.1X odrzucony`,
+        message: d.accessSession.reason,
+        remedy:
+          'Sprawdź konto i autoryzację, shared secret, klienta NAS, zasilanie oraz UDP/1812 i trasę odpowiedzi.',
+        deviceId: d.id,
+      });
+    else if (d.accessSession?.accounting === 'unavailable')
+      add({
+        code: 'radius-accounting-unavailable',
+        severity: 'warning',
+        title: `${d.name}: accounting niedostępny`,
+        message: 'Logowanie zostało zaakceptowane, ale RADIUS UDP/1813 nie odpowiedział.',
+        remedy: 'Sprawdź usługę accounting, ACL i trasę odpowiedzi NAS–RADIUS.',
+        deviceId: d.id,
+      });
+  }
   for (const l of network.links) {
     const state = hw.links.get(l.id)!;
     const pair = `${network.devices.find((d) => d.id === l.a)?.name || l.a} ↔ ${network.devices.find((d) => d.id === l.b)?.name || l.b}`;
@@ -107,6 +128,7 @@ export function diagnoseNetwork(network: Network): Diagnostic[] {
       deviceId,
     });
   for (const d of network.devices) {
+    if (d.kind === 'rack') continue;
     for (const p of d.ports || []) {
       const ids =
         p.mode === 'access'
@@ -207,6 +229,7 @@ export function diagnoseNetwork(network: Network): Diagnostic[] {
   }
   const addresses = new Map<string, Set<string>>();
   for (const d of network.devices) {
+    if (d.kind === 'rack') continue;
     const ips = d.interfaces ? d.interfaces.filter((n) => n.enabled).map((n) => n.ip) : [d.ip];
     ips.push(
       d.wanIp || '',

@@ -7,13 +7,20 @@ export type Kind =
   | 'switch-l3'
   | 'switch-unmanaged'
   | 'server'
+  | 'rack'
   | 'workstation'
   | 'accesspoint'
   | 'vm'
   | 'printer'
   | 'dns'
+  | 'radius'
   | 'camera'
-  | 'mobile-phone';
+  | 'mobile-phone'
+  | 'iot'
+  | 'laptop'
+  | 'nvr'
+  | 'mini-server'
+  | 'ups';
 
 export type Protocol = 'ICMP' | 'TCP' | 'UDP';
 
@@ -42,6 +49,7 @@ export type Port = {
   allowedVlans?: number[];
   module?: '1g-sx' | '1g-lx' | '10g-sr' | '10g-lr';
   poe?: 'off' | 'af' | 'at' | 'bt3' | 'bt4';
+  dot1x?: boolean;
 };
 export type Cable =
   'cat5e' | 'cat6' | 'cat6a' | 'om3' | 'om4' | 'os2' | 'dac' | 'wireless' | 'virtual';
@@ -96,6 +104,54 @@ export type Device = {
   services?: Service[];
   dnsServerIds?: string[];
   dnsRecords?: DnsRecord[];
+  platform?: string;
+  radius?: { users: RadiusUser[]; clients: { nasId: string; secret: string }[] };
+  radiusNas?: { serverId: string; secret: string; dynamicVlan: boolean; accounting: boolean };
+  wifiEnterprise?: boolean;
+  supplicant?: { username: string; password: string };
+  /** Recomputed from configuration and reachability; never an authorization credential. */
+  accessSession?: RadiusSession;
+  rack?: { heightU: number; mounts: RackMount[] };
+  recorder?: { channels: number; storageTb: number; retentionDays: number };
+  ups?: { capacityVa: number; capacityWatts: number; loadWatts: number; runtimeMinutes: number };
+};
+
+export type RackMount = {
+  deviceId: string;
+  startU: number;
+  heightU: number;
+  description: string;
+};
+
+export type RadiusUser = {
+  id: string;
+  username: string;
+  password: string;
+  enabled: boolean;
+  authorized: boolean;
+  vlan?: number;
+  role: string;
+  allowedNasIds?: string[];
+};
+export type RadiusSession = {
+  state: 'accepted' | 'rejected' | 'unavailable';
+  username: string;
+  nasId: string;
+  serverId: string;
+  baseVlan: number;
+  vlan: number;
+  reason: string;
+  accounting: 'recorded' | 'unavailable' | 'disabled';
+  authPath: string[];
+};
+export type RadiusEvent = {
+  time: number;
+  deviceId: string;
+  username: string;
+  nasId: string;
+  serverId: string;
+  type: 'accept' | 'reject' | 'accounting-start' | 'accounting-stop';
+  message: string;
 };
 
 export type DnsRecord = {
@@ -169,6 +225,7 @@ export type Network = {
   devices: Device[];
   links: Link[];
   vlans: Vlan[];
+  radiusEvents?: RadiusEvent[];
 };
 
 export type Vlan = {

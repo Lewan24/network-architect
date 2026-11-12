@@ -1,6 +1,8 @@
 # Gotowe laboratorium: biuro, drukarka i monitoring PoE
 
-Wybierz **Przykład → Biuro, serwery i Wi-Fi**. Fabryka tworzy nową kopię 22 urządzeń i siedmiu VLAN-ów. Zapisany projekt nie jest nadpisywany przy aktualizacji aplikacji; przykład należy wczytać ponownie z menu. Wczytanie można cofnąć.
+Laboratorium rozszerzono o gałąź AAA: RADIUS, AP Enterprise, switch 802.1X, dwa laptopy, Raspberry Pi, mini serwer, NVR, UPS i szafę RACK. Administrator otrzymuje VLAN 20, a konto pracownika i IoT — VLAN 30. Ta dodatkowa gałąź korzysta z VLAN-ów już przenoszonych przez switch serwerowy i nie zmienia dotychczasowych polityk Wi-Fi pracowników/gości. [Logowanie, konta i accounting](./RADIUS.md).
+
+Wybierz **Przykład → Biuro, serwery i Wi-Fi**. Fabryka tworzy nową kopię 32 urządzeń i siedmiu VLAN-ów. Zapisany projekt nie jest nadpisywany przy aktualizacji aplikacji; przykład należy wczytać ponownie z menu. Wczytanie można cofnąć.
 
 ## Topologia i adresacja
 
@@ -47,11 +49,11 @@ Przykład używa zwykłego rekordu DNS, bez automatycznego wykrywania mDNS/AirPr
 
 Switch CCTV ma budżet PSE 60 W. Każda kamera wymaga 12 W przy PD i jest podłączona do portu PSE 802.3at. Konserwatywna rezerwacja klasy 3 wynosi po 15,4 W, czyli 30,8 W razem; pozostaje 29,2 W. Obie kamery otrzymują DHCP i pracują w profilu Ethernet 10/100. AP, serwery i drukarka korzystają na tym etapie z zasilania lokalnego.
 
-NVR inicjuje połączenia do kamer po RTSP TCP/554; dopuszczono też zarządzanie HTTPS/443. Porty i zasadę ograniczania dostępu do kamer porównano z [Axis OS Hardening Guide](https://help.axis.com/en-us/axis-os-hardening-guide). Przykład reprezentuje kontrolę RTSP i wariant transportu po TCP; model nie generuje nagrań, strumieni RTP/UDP ani discovery ONVIF. UPS i instalacja elektryczna pozostają osobnym etapem.
+NVR inicjuje połączenia do kamer po RTSP TCP/554; dopuszczono też zarządzanie HTTPS/443. Porty i zasadę ograniczania dostępu do kamer porównano z [Axis OS Hardening Guide](https://help.axis.com/en-us/axis-os-hardening-guide). Przykład reprezentuje kontrolę RTSP i wariant transportu po TCP; model nie generuje nagrań, strumieni RTP/UDP ani discovery ONVIF. UPS w gałęzi AAA ma parametry planistyczne i zarządzanie SNMP/HTTPS; instalacja elektryczna i rozładowywanie baterii nie są symulowane.
 
 ## Odbiór i testy
 
-W panelu **Symulacja** są 24 gotowe scenariusze. Obejmują publikację NPM, DNS, obie kamery, drukowanie przez LAN/Wi-Fi, administrację drukarki oraz blokady gości, pracowników, kamer i drukarki.
+W panelu **Symulacja** są dotychczasowe scenariusze publikacji NPM, DNS, obu kamer, drukowania przez LAN/Wi-Fi, administracji drukarki i izolacji stref. Dodano też trzy scenariusze gałęzi AAA: dostęp administratora do mini serwera, accounting NAS i blokadę IoT przez ACL.
 
 `src/tests/demoAcceptance.test.ts` sprawdza ponadto:
 

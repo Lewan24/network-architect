@@ -15,17 +15,29 @@ function MiniPreview({ network }: { network: Network }) {
       if (levels.has(l.a) && !levels.has(l.b)) levels.set(l.b, levels.get(l.a)! + 1);
       if (levels.has(l.b) && !levels.has(l.a)) levels.set(l.a, levels.get(l.b)! + 1);
     }
+  const widestLevel = Math.max(
+    1,
+    ...network.devices.map(
+      (d) =>
+        network.devices.filter((x) => (levels.get(x.id) || 0) === (levels.get(d.id) || 0)).length,
+    ),
+  );
+  const previewWidth = Math.max(720, (widestLevel + 1) * 176);
+  const previewHeight = Math.max(340, Math.max(0, ...levels.values()) * 88 + 90);
   const positions = new Map(
     network.devices.map((d) => {
       const depth = levels.get(d.id) || 0;
       const peers = network.devices.filter((x) => (levels.get(x.id) || 0) === depth);
-      return [d.id, { x: (720 * (peers.indexOf(d) + 1)) / (peers.length + 1), y: 35 + depth * 88 }];
+      return [
+        d.id,
+        { x: (previewWidth * (peers.indexOf(d) + 1)) / (peers.length + 1), y: 35 + depth * 88 },
+      ];
     }),
   );
   return (
     <svg
       className="lesson-preview"
-      viewBox="0 0 720 340"
+      viewBox={`0 0 ${previewWidth} ${previewHeight}`}
       role="img"
       aria-label="Miniatura topologii laboratorium"
     >
@@ -55,7 +67,11 @@ function MiniPreview({ network }: { network: Network }) {
               {d.name.slice(0, 24)}
             </text>
             <text textAnchor="middle" y={15} className="preview-detail">
-              {d.kind === 'internet' ? 'WAN' : `VLAN ${d.vlan} · ${d.ip || 'DHCP'}`}
+              {d.kind === 'internet'
+                ? 'WAN'
+                : d.kind === 'rack'
+                  ? `${d.rack?.heightU}U · montaż`
+                  : `VLAN ${d.vlan} · ${d.ip || 'DHCP'}`}
             </text>
           </g>
         );

@@ -1,3 +1,5 @@
+import { validateRadius, validateRadiusEvents } from './radius';
+import { validateRack } from './racks';
 import { connectedNextHop } from './interfaces';
 import { validateHardwareDevice, validateHardwareLink } from './hardwareValidation';
 import { hostInVlan, ipNumber, numberIp, routeSubnet, subnet, validIp } from './addressing';
@@ -30,7 +32,10 @@ export function isRoutingDevice(d: Device) {
 export function bridgesVlan(d: Device, vlan: number): boolean {
   if (d.kind === 'switch' || d.kind === 'switch-l3')
     return !d.allowedVlans?.length || d.allowedVlans.includes(vlan);
-  if (d.kind === 'accesspoint') return !vlan || (d.wifiVlan ?? d.vlan) === vlan;
+  if (d.kind === 'accesspoint')
+    return (
+      !!(d.wifiEnterprise && d.radiusNas?.dynamicVlan) || !vlan || (d.wifiVlan ?? d.vlan) === vlan
+    );
   if (d.kind === 'switch-unmanaged') return !d.vlan || d.vlan === vlan;
   return false;
 }
@@ -46,7 +51,7 @@ export function hasWan(d: Device) {
   );
 }
 export function isDhcpServer(d: Device) {
-  return isRoutingDevice(d) || d.kind === 'server' || d.kind === 'dns';
+  return isRoutingDevice(d) || ['server', 'mini-server', 'iot', 'dns'].includes(d.kind);
 }
 export function validHostname(value: string) {
   return (
@@ -138,7 +143,7 @@ export function publicAddresses(network: Network) {
   ].filter(isPublicModelIp);
 }
 export function isHypervisor(d: Device) {
-  return d.kind === 'server' && d.serverRole === 'hypervisor';
+  return ['server', 'mini-server'].includes(d.kind) && d.serverRole === 'hypervisor';
 }
 export function topologyLinks(network: Network): Link[] {
   const byId = new Map(network.devices.map((d) => [d.id, d]));
@@ -161,7 +166,47 @@ export function topologyLinks(network: Network): Link[] {
 }
 
 export function validateDeviceConfig(d: Device, network?: Network, strictNeighbors = true) {
+  validateRadius(d, network);
+  validateRack(d, network);
   validateHardwareDevice(d);
+  if (d.platform !== undefined && (typeof d.platform !== 'string' || d.platform.length > 80))
+    throw Error('Platform: expected at most 80 characters.');
+  if (d.recorder !== undefined) {
+    const r = d.recorder;
+    if (
+      !r ||
+      !Number.isInteger(r.channels) ||
+      r.channels < 1 ||
+      r.channels > 256 ||
+      !Number.isFinite(r.storageTb) ||
+      r.storageTb < 0.1 ||
+      r.storageTb > 1000 ||
+      !Number.isInteger(r.retentionDays) ||
+      r.retentionDays < 1 ||
+      r.retentionDays > 3650
+    )
+      throw Error('NVR: invalid channels, storage or retention.');
+  }
+  if (d.ups !== undefined) {
+    const u = d.ups;
+    if (
+      !u ||
+      !Number.isFinite(u.capacityVa) ||
+      u.capacityVa < 1 ||
+      u.capacityVa > 100000 ||
+      !Number.isFinite(u.capacityWatts) ||
+      u.capacityWatts < 1 ||
+      u.capacityWatts > u.capacityVa ||
+      !Number.isFinite(u.loadWatts) ||
+      u.loadWatts < 0 ||
+      u.loadWatts > 100000 ||
+      !Number.isFinite(u.runtimeMinutes) ||
+      u.runtimeMinutes < 0 ||
+      u.runtimeMinutes > 10080
+    )
+      throw Error('UPS: invalid capacity, load or runtime (W must not exceed VA).');
+  }
+
   if (
     d.dnsServerIds !== undefined &&
     (!Array.isArray(d.dnsServerIds) ||
@@ -250,7 +295,7 @@ export function validateDeviceConfig(d: Device, network?: Network, strictNeighbo
   )
     throw Error('Wybierz serwer z rolą hypervisora.');
   if (
-    d.kind === 'server' &&
+    ['server', 'mini-server'].includes(d.kind) &&
     !isHypervisor(d) &&
     network?.devices.some((vm) => vm.kind === 'vm' && vm.hostId === d.id)
   )
@@ -455,6 +500,7 @@ export function applyVlans(network: Network, vlans: Vlan[]): Network {
   };
   validateNetworkServices(next);
   for (const d of next.devices) {
+    validateRadius(d, next);
     if (!d.vlan) continue;
     const vlan = normalized.find((v) => v.id === d.vlan);
     if (!vlan)
@@ -495,6 +541,7 @@ export function parseNetwork(text: string): Network {
     n.links.length > 2000
   )
     throw Error('Nieprawidłowy format projektu.');
+  validateRadiusEvents(n);
   const ids = new Set<string>();
   for (const d of n.devices) {
     if (
@@ -503,7 +550,10 @@ export function parseNetwork(text: string): Network {
       ids.has(d.id) ||
       !Object.hasOwn(kinds, d.kind) ||
       typeof d.name !== 'string' ||
-      !(validIp(d.ip) || ((d.kind === 'switch-unmanaged' || d.ipMode === 'auto') && d.ip === '')) ||
+      !(
+        validIp(d.ip) ||
+        ((d.kind === 'switch-unmanaged' || d.kind === 'rack' || d.ipMode === 'auto') && d.ip === '')
+      ) ||
       !Number.isInteger(d.vlan) ||
       d.vlan < 0 ||
       d.vlan > 4094 ||

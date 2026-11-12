@@ -49,7 +49,7 @@ export function TrafficPanel({ network, probe, setProbe, sim, close, editInterfa
     );
   const active = sim.active;
   const pending = active?.status === 'pending';
-  const devices = network.devices.filter((d) => d.kind !== 'switch-unmanaged');
+  const devices = network.devices.filter((d) => !['switch-unmanaged', 'rack'].includes(d.kind));
   const external = network.devices.find((d) => d.id === probe.source)?.kind === 'internet';
   const sourceDevice = network.devices.find((d) => d.id === probe.source);
   const targetDevice = network.devices.find((d) => d.id === probe.destination);

@@ -4,8 +4,21 @@ import type { Device, Network, NetworkInterface, Probe } from './networkTypes';
 
 export function supportsHostInterfaces(d: Device): boolean {
   return (
-    ['workstation', 'mobile-phone', 'printer', 'camera', 'dns', 'vm', 'server'].includes(d.kind) &&
-    d.serverRole !== 'hypervisor'
+    [
+      'iot',
+      'laptop',
+      'nvr',
+      'mini-server',
+      'ups',
+      'workstation',
+      'mobile-phone',
+      'printer',
+      'camera',
+      'dns',
+      'radius',
+      'vm',
+      'server',
+    ].includes(d.kind) && d.serverRole !== 'hypervisor'
   );
 }
 export function supportsInterfaces(d: Device): boolean {

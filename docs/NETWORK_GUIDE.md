@@ -6,10 +6,14 @@ Poradnik jest dostępny w aplikacji pod przyciskiem **Poradnik**. Tekst tego pli
 
 W menu **Przykład** znajdziesz małą firmę, home lab, dużą firmę z DMZ i dwiema zaporami, dotychczasowe laboratorium biurowe oraz celowo błędny antywzorzec. Każdy projekt ma własne testy w panelu Symulacja. W Poradniku, w zakładce projektów, przyciski prowadzą do konkretnych sekcji konfiguracji.
 
-Zakładka **Laboratoria: problem i rozwiązanie** zawiera sześć par małych projektów. Porównaj wariant z błędem z poprawionym. Wczytanie zastępuje bieżący projekt, można je cofnąć. Przycisk wczytania przygotowuje parametry testu; następnie kliknij **Wyślij pakiet**. Zielony wynik oznacza łączność, nie ocenę bezpieczeństwa.
+Zakładka **Laboratoria: problem i rozwiązanie** zawiera siedem par małych projektów. Porównaj wariant z błędem z poprawionym. Wczytanie zastępuje bieżący projekt, można je cofnąć. Przycisk wczytania przygotowuje parametry testu; następnie kliknij **Wyślij pakiet**. Zielony wynik oznacza łączność, nie ocenę bezpieczeństwa.
 
 ## Słowniczek
 
+- **RADIUS / AAA:** Authentication weryfikuje konto, Authorization określa zgodę i VLAN, Accounting rejestruje zdarzenia sesji. Model sprawdza transport UDP/1812 i UDP/1813.
+- **802.1X / NAS / supplicant:** Supplicant to klient logujący się do sieci; NAS to zaufany AP lub switch egzekwujący decyzję RADIUS. VLAN użytkownika musi być przenoszony przez uplink.
+- **Szafa RACK / U:** Pasywny obiekt montażowy. 1U to jednostka wysokości sprzętu; UPS może zajmować np. 2U. W podglądzie nie mogą nakładać się pozycje montażowe.
+- **IoT, mini serwer, NVR i UPS:** IoT/Raspberry Pi i laptop mają Ethernet oraz Wi-Fi; mini serwer uruchamia usługi lub VM, NVR opisuje archiwum monitoringu, UPS udostępnia SNMP i parametry planowania zasilania. Nagrania i bateria nie są symulowane w czasie.
 - **VLAN:** Oddzielna domena warstwy 2 (ramki i broadcast). Sama nie określa, kto ma dostęp do usług po routingu.
 - **Podsieć / CIDR:** Zakres adresów IPv4 opisany adresem sieci i maską, np. 192.168.10.0/24. Nie jest tym samym co numer VLAN-u.
 - **Brama / SVI:** Interfejs urządzenia L3 w danej podsieci. Host używa go do komunikacji z innymi podsieciami.
@@ -46,7 +50,7 @@ Sprawdź osiągalność bramy, DHCP i DNS. Rezerwuj adresy infrastruktury i pozo
 
 ### 6. Wprowadź politykę i zarządzanie
 
-Stosuj minimalne zezwolenia, oddziel zarządzanie i ogranicz WAN do jawnie publikowanych usług. Poza modelem potrzebne są również aktualizacje, kopie konfiguracji, uwierzytelnianie, monitoring i logowanie.
+Stosuj minimalne zezwolenia, oddziel zarządzanie i ogranicz WAN do jawnie publikowanych usług. Ustaw konta RADIUS, zaufane NAS oraz VLAN-y ról. Sprawdź odrzucenie hasła, cofnięcie autoryzacji i accounting. Na rzeczywistym sprzęcie potrzebne są także certyfikaty, aktualizacje i kopie konfiguracji.
 
 ### 7. Odbierz projekt testami
 
@@ -154,6 +158,26 @@ Port PSE zasila odbiornik PD. Znaczenie mają klasa, całkowity budżet, medium 
 
 Źródła: [HPE Aruba: klasy i moc PoE 802.3bt](https://arubanetworking.hpe.com/techdocs/AOS-S/16.10/MCG/WC/content/wc/def-ter-802.3bt.htm).
 
+## 7. RADIUS: użytkownik, autoryzacja i VLAN
+
+Klient 802.1X rozmawia z NAS (AP lub switchem). To NAS kontaktuje się z RADIUS, a po Access-Accept wpuszcza użytkownika do przyznanego VLAN-u.
+
+**Problem:** Laptop zna login student, ale ma błędne hasło. Mimo sprawnych kabli i DHCP port pozostaje nieautoryzowany i klient nie uzyskuje dostępu.
+
+**Rozwiązanie:** W wariancie poprawionym hasło vlan-demo pasuje do konta student. NAS ma zgodny shared secret i jest na liście zaufanych klientów. Użytkownik otrzymuje VLAN 20 oraz adres z jego puli DHCP.
+
+1. Wczytaj wariant z błędem. Otwórz laptop Klient → RADIUS / 802.1X i zobacz profil oraz Access-Reject.
+2. Na serwerze RADIUS porównaj konto student, zgodę na dostęp, VLAN 20 i dozwolony NAS. Hasła w laboratorium są danymi testowymi.
+3. Na switchu sprawdź NAS: serwer, shared secret i accounting. Port laptopa ma 802.1X; uplink oraz port RADIUS nie mogą wymagać logowania klienta.
+4. Wczytaj wariant poprawiony i wyślij HTTPS do usługi. Sprawdź Access-Accept, nowy VLAN, DHCP i dziennik Accounting-Start.
+5. Wyłącz konto, zmień shared secret lub zablokuj UDP/1812 w ACL: dostęp znika także przy wcześniej ważnej dzierżawie. Wyłączenie samego UDP/1813 blokuje accounting, ale nie poprawne logowanie.
+6. W gałęzi AAA każdego projektu porównaj laptopy admin / admin-demo i pracownik / staff-demo na tym samym SSID oraz Raspberry Pi raspberry / iot-demo na przewodowym porcie 802.1X.
+7. Otwórz szafę RACK → Podgląd szafy. Serwer RADIUS, mini serwer, NVR i UPS mają przypisane pozycje i wysokości U; montaż nie tworzy połączenia sieciowego ani zasilania.
+
+**Co zapamiętać:** Uwierzytelnianie sprawdza tożsamość, autoryzacja określa zgodę i VLAN, a accounting opisuje sesję. Nadal potrzebujesz trunków, DHCP, bramy i ACL. Model przelicza decyzję na bieżąco; nie emuluje wymiany EAP/TLS, certyfikatów, AD, MAB ani czasów reautoryzacji. Dane testowe są jawne w lokalnym projekcie i JSON.
+
+Źródła: [RFC 2865: RADIUS Authentication](https://www.rfc-editor.org/rfc/rfc2865), [RFC 3580: 802.1X i przydzielanie VLAN](https://www.rfc-editor.org/rfc/rfc3580), [RFC 2866: RADIUS Accounting](https://www.rfc-editor.org/rfc/rfc2866).
+
 ## Zakres symulacji
 
-Przykłady sprawdzają logiczne VLAN-y, adresację, DHCP, DNS, ACL, statyczne trasy, NAT, porty, usługi i PoE. Nie emulują kont użytkowników, VPN, STP/LACP/HA, stosu TCP, SIEM, aktualizacji firmware ani UPS. Zastosowanie tych rozwiązań na rzeczywistym sprzęcie wymaga jego dokumentacji, konfiguracji i pomiarów.
+Przykłady sprawdzają logiczne VLAN-y, adresację, DHCP, DNS, ACL, statyczne trasy, NAT, porty, usługi, PoE oraz konta, autoryzację i dynamiczny VLAN RADIUS/802.1X. Accounting sprawdza dostępność UDP/1813 i zapisuje zdarzenia modelu. Każdy projekt zawiera gałąź AAA z laptopami, Raspberry Pi, mini serwerem, NVR, UPS oraz szafą RACK. UPS i retencja NVR są parametrami planowania, a montaż RACK nie tworzy kabli sieciowych ani elektrycznych. Model nie emuluje kryptografii EAP/TLS, certyfikatów, AD, MAB, CoA, timerów sesji, VPN, STP/LACP/HA, stosu TCP, SIEM ani aktualizacji firmware. Dane logowania są demonstracyjne i jawne w projekcie oraz eksporcie JSON. Wdrożenie na sprzęcie wymaga jego dokumentacji, konfiguracji i pomiarów.

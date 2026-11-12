@@ -1,3 +1,4 @@
+import { modernInfrastructure } from './modernInfrastructure';
 import { makePort, prepareHardware } from '../model/ports';
 import { defaultServices } from '../devices/deviceCatalog';
 import { reconcileDhcp } from '../model/dhcp';
@@ -210,7 +211,7 @@ export function createDemoNetwork(): Network {
         allowedVlans: [30],
       },
       host('demo-pc', 'workstation', 'Stanowisko administratora', '', 10, 70, 530),
-      host('demo-laptop', 'workstation', 'Laptop biurowy', '', 40, 360, 720),
+      host('demo-laptop', 'laptop', 'Laptop biurowy', '', 40, 360, 720),
       {
         ...host('demo-printer', 'printer', 'Drukarka · pracownicy', '192.168.60.20', 60, 450, 490),
         dnsServerIds: ['demo-dns'],
@@ -255,7 +256,7 @@ export function createDemoNetwork(): Network {
         services: [service(443, 'Panel NAS HTTPS'), service(445, 'SMB')],
       },
       {
-        ...host('demo-nvr', 'server', 'NVR · rejestrator', '192.168.20.40', 20, 1100, 610),
+        ...host('demo-nvr', 'nvr', 'NVR · rejestrator', '192.168.20.40', 20, 1100, 610),
         services: [service(443, 'Panel NVR'), service(8554, 'Usługa wideo')],
       },
       host('demo-camera1', 'camera', 'Kamera 01 · wejście', '', 30, 1060, 1010),
@@ -264,7 +265,7 @@ export function createDemoNetwork(): Network {
         ...host('demo-staff-ap', 'accesspoint', 'AP · pracownicy', '192.168.40.2', 40, 180, 830),
         ssid: 'Firma-Staff',
       },
-      host('demo-staff-client', 'workstation', 'Laptop · Wi-Fi pracowników', '', 40, 0, 940),
+      host('demo-staff-client', 'laptop', 'Laptop · Wi-Fi pracowników', '', 40, 0, 940),
       {
         ...host('demo-guest-ap', 'accesspoint', 'AP · goście', '192.168.50.2', 50, 650, 830),
         ssid: 'Firma-Guest',
@@ -275,7 +276,7 @@ export function createDemoNetwork(): Network {
           { ...makePort('radio0', 'wifi', 50), mode: 'auto' },
         ],
       },
-      host('demo-guest-client', 'workstation', 'Laptop gościa · tylko Internet', '', 50, 830, 940),
+      host('demo-guest-client', 'laptop', 'Laptop gościa · tylko Internet', '', 50, 830, 940),
       {
         ...host(
           'demo-guest-dns',
@@ -384,6 +385,7 @@ export function createDemoNetwork(): Network {
     const portId = wire.a === cameraSwitch.id ? wire.aPortId : wire.bPortId;
     cameraSwitch.ports!.find((p) => p.id === portId)!.poe = 'at';
   }
+  modernInfrastructure(prepared, 'demo');
   return reconcileDhcp(prepared);
 }
 export const demoScenarios: {

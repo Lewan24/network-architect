@@ -16,6 +16,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState }
 import { DeviceGlyph } from '../devices/DeviceGlyph';
 import { fitCamera, toWorld, zoomAt, type Camera, type Point } from './canvasGeometry';
 import { kinds } from '../devices/deviceCatalog';
+import { rackPlacement } from '../model/racks';
 import { hasWan, isHypervisor, topologyLinks, tracePath, traceLinkPath } from '../model/network';
 import type { Kind, Network } from '../model/networkTypes';
 import {
@@ -446,6 +447,45 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
               </g>
             );
           })}
+          {devices
+            .filter((d) => d.kind === 'rack')
+            .flatMap((cabinet) =>
+              (cabinet.rack?.mounts || []).map((mount) => {
+                const member = devices.find((d) => d.id === mount.deviceId);
+                if (!member) return null;
+                const visible = p.selected === cabinet.id || p.selected === member.id;
+                return (
+                  <g
+                    key={`mount:${cabinet.id}:${member.id}`}
+                    pointerEvents="none"
+                    opacity={visible ? 0.85 : 0.24}
+                  >
+                    <title>
+                      {member.name} w szafie {cabinet.name} · U{mount.startU} · {mount.heightU}U
+                      (montaż)
+                    </title>
+                    <path
+                      d={`M${cabinet.x},${cabinet.y} L${member.x},${member.y}`}
+                      stroke="#9a8ab0"
+                      strokeWidth={visible ? 2 : 1}
+                      strokeDasharray="2 7"
+                      fill="none"
+                    />
+                    {visible && (
+                      <text
+                        x={(cabinet.x + member.x) / 2}
+                        y={(cabinet.y + member.y) / 2 - 10}
+                        textAnchor="middle"
+                        fill="#7d6a94"
+                        fontSize="10"
+                      >
+                        Montaż · U{mount.startU} · {mount.heightU}U
+                      </text>
+                    )}
+                  </g>
+                );
+              }),
+            )}
           {allLinks.map((l) => {
             const a = devices.find((d) => d.id === l.a)!;
             const b = devices.find((d) => d.id === l.b)!;
@@ -541,8 +581,11 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
               const index = path.indexOf(d.id);
               const arrived = index >= 0 && index <= reached;
               const isStop = blocked && d.id === path.at(-1);
-              const caption =
-                d.kind === 'vm'
+              const caption = d.accessSession
+                ? d.accessSession.state === 'accepted'
+                  ? `802.1X · ${d.accessSession.username}`
+                  : 'RADIUS · odmowa dostępu'
+                : d.kind === 'vm'
                   ? 'VM · ' +
                     (p.network.devices.find((h) => h.id === d.hostId)?.name || 'bez hosta')
                   : isHypervisor(d)
@@ -557,9 +600,11 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                             ? d.ssid || 'Wi-Fi'
                             : '';
               const addressLabel =
-                d.kind === 'switch-unmanaged'
-                  ? 'Bez IP zarządzania'
-                  : `${d.ip || 'Czeka na adres'} · ${d.ipMode === 'auto' ? 'DHCP' : 'STATIC'}`;
+                d.kind === 'rack'
+                  ? 'Monta\u017c / bez sieci'
+                  : d.kind === 'switch-unmanaged'
+                    ? 'Bez IP zarządzania'
+                    : `${d.ip || 'Czeka na adres'} · ${d.ipMode === 'auto' ? 'DHCP' : 'STATIC'}`;
               return (
                 <g
                   key={d.id}
@@ -668,13 +713,20 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                       {addressLabel}
                     </text>
                     <text textAnchor="middle" y="35" className="device-role">
-                      {hw.powerErrors.has(d.id)
-                        ? 'Brak zasilania PoE'
-                        : hasWan(d) && d.wanIp
-                          ? `WAN ${d.wanIp}`
-                          : d.interfaces && d.interfaces.length > 1
-                            ? `${d.interfaces.length} interfejsy IP`
-                            : caption}
+                      {d.kind === 'rack'
+                        ? `Szafa ${d.rack?.heightU || 42}U · ${d.rack?.mounts.length || 0} urządzeń`
+                        : rackPlacement(p.network, d.id)
+                          ? (() => {
+                              const placement = rackPlacement(p.network, d.id)!;
+                              return `${placement.cabinet.name} · U${placement.mount.startU} · ${placement.mount.heightU}U`;
+                            })()
+                          : hw.powerErrors.has(d.id)
+                            ? 'Brak zasilania PoE'
+                            : hasWan(d) && d.wanIp
+                              ? `WAN ${d.wanIp}`
+                              : d.interfaces && d.interfaces.length > 1
+                                ? `${d.interfaces.length} interfejsy IP`
+                                : caption}
                     </text>
                     <circle
                       cx={-addressLabel.length * 2.8 - 9}
@@ -742,12 +794,12 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
           <button onClick={() => focusObject(p.selected!)} aria-label="Przybliż zaznaczony obiekt">
             <ArrowsOutSimple /> Przybliż
           </button>
-          {p.network.devices.some((d) => d.id === p.selected) && (
+          {p.network.devices.some((d) => d.id === p.selected && d.kind !== 'rack') && (
             <button onClick={() => p.connect(p.selected!)}>
               <LinkSimple /> Połącz urządzenie
             </button>
           )}
-          {p.network.devices.some((d) => d.id === p.selected) && (
+          {p.network.devices.some((d) => d.id === p.selected && d.kind !== 'rack') && (
             <button onClick={() => p.editPorts(p.selected!)}>Porty i PoE</button>
           )}
           {p.network.devices.some((d) => d.id === p.selected && supportsInterfaces(d)) && (

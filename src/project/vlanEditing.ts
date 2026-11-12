@@ -4,6 +4,8 @@ import type { Device, Network, Vlan } from '../model/networkTypes';
 /** Changing a referenced ID would break memberships, ports and dynamic ACL references. */
 export function vlanReferences(network: Network, id: number): string[] {
   const references: string[] = [];
+  if (network.devices.some((d) => d.radius?.users.some((u) => u.vlan === id)))
+    references.push('polityki VLAN RADIUS');
   if (network.devices.some((d) => d.vlan === id)) references.push('urządzenia w tej sieci');
   if (network.devices.some((d) => d.interfaces?.some((n) => n.vlan === id)))
     references.push('interfejsy IP');

@@ -1,0 +1,491 @@
+.rack-overview {
+  padding-right: 20px;
+}
+.rack-capacity {
+  margin: 18px 0 8px;
+  color: #68768a;
+}
+.rack-capacity strong {
+  color: #344054;
+  font-size: 24px;
+  font-variant-numeric: tabular-nums;
+}
+.rack-overview progress {
+  width: 100%;
+  height: 7px;
+  accent-color: #7e91af;
+}
+.rack-overview > .primary {
+  margin-top: 16px;
+}
+.rack-inventory {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+  border-top: 1px solid #e6eaf0;
+}
+.rack-inventory button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #e6eaf0;
+  background: transparent;
+  padding: 12px 4px;
+  text-align: left;
+  border-radius: 0;
+}
+.rack-inventory button[aria-pressed='true'] {
+  background: #eef1fb;
+}
+.rack-inventory strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.rack-inventory span {
+  color: #68768a;
+  font-variant-numeric: tabular-nums;
+}
+.rack-preview {
+  background: #f0f2f5;
+  min-height: 0;
+  overflow: auto;
+}
+.rack-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid #dce1e8;
+}
+.rack-preview-toolbar p {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+}
+.rack-preview-toolbar p span {
+  color: #637185;
+}
+.rack-preview-toolbar [role='group'] {
+  display: flex;
+  background: #e2e6ed;
+  padding: 3px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.rack-preview-toolbar button {
+  border: 0;
+  background: transparent;
+  padding: 6px 12px;
+  color: #4c5a70;
+}
+.rack-preview-toolbar button[aria-pressed='true'] {
+  background: #fff;
+  color: #28394f;
+  box-shadow: 0 1px 3px #26384a20;
+}
+.rack-preview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 230px;
+}
+.rack-stage {
+  --rack-unit-height: clamp(6px, calc((68dvh - 160px) / var(--rack-units)), 40px);
+  overflow: auto;
+  max-height: 72dvh;
+  padding: 28px 36px 32px;
+  scrollbar-color: #a4afbd #e2e6eb;
+}
+.rack-stage.detail {
+  --rack-unit-height: 42px;
+}
+.rack-cabinet {
+  width: min(100%, 490px);
+  min-width: 280px;
+  margin: 0 auto;
+  filter: drop-shadow(5px 12px 10px #25324626);
+}
+.rack-cabinet-crown {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 40px;
+  padding: 0 22px;
+  border: 1px solid #17202b;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, #526070, #303b49 45%, #232e3b);
+  color: #e4ebf3;
+  box-shadow: inset 0 1px #8996a5;
+}
+.rack-cabinet-crown strong {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rack-cabinet-crown > span {
+  color: #c3cdd8;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.rack-cabinet-body {
+  display: flex;
+  padding: 10px 0;
+  background: #202a36;
+  border-inline: 1px solid #1e2834;
+  box-shadow: inset 0 3px 6px #111a25;
+}
+.rack-cabinet-rail {
+  flex: 0 0 15px;
+  background: linear-gradient(90deg, #25303c, #576372 45%, #303d4c);
+  position: relative;
+}
+.rack-cabinet-rail.right {
+  background: linear-gradient(90deg, #303d4c, #576372 55%, #25303c);
+}
+.rack-door-handle {
+  position: absolute;
+  top: 43%;
+  right: 3px;
+  width: 5px;
+  height: 62px;
+  background: #151f2b;
+  border-radius: 3px;
+  box-shadow: 1px 0 0 #788493;
+}
+.rack-cabinet-bay {
+  position: relative;
+  flex: 1;
+  height: calc(var(--rack-units) * var(--rack-unit-height));
+  background: #15202c;
+  box-shadow: inset 0 0 12px #070e16;
+}
+.rack-preview-unit {
+  position: absolute;
+  inset-inline: 0;
+  width: 100%;
+  height: var(--rack-unit-height);
+  display: grid;
+  grid-template-columns: 23px 5px 1fr 5px;
+  gap: 5px;
+  align-items: center;
+  padding: 0 9px 0 4px;
+  border: 0;
+  border-bottom: 1px solid #364353;
+  background: transparent;
+  border-radius: 0;
+  color: #c0cbd8;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+.rack-preview-unit > i {
+  display: block;
+  width: 3px;
+  height: 4px;
+  background: #080f18;
+  box-shadow:
+    0 -5px #080f18,
+    0 5px #080f18;
+}
+.rack-preview-unit:hover,
+.rack-preview-unit.droppable:hover {
+  background: #374b61;
+}
+.rack-equipment {
+  position: absolute;
+  inset-inline: 31px 5px;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #8b96a5;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #c0c8d2, #8795a5 45%, #a0adbc);
+  box-shadow: 0 2px 2px #060d1666;
+  color: #132236;
+  text-align: left;
+  cursor: grab;
+  container-type: size;
+}
+.rack-equipment:hover {
+  background: linear-gradient(180deg, #d8e0e9, #aab7c7);
+}
+.rack-equipment.selected {
+  outline: 2px solid #b0c4ff;
+  outline-offset: -2px;
+  z-index: 2;
+}
+.rack-equipment:active {
+  cursor: grabbing;
+}
+.rack-equipment:focus-visible,
+.rack-preview-unit:focus-visible {
+  outline: 2px solid #c3d1ff;
+  outline-offset: -2px;
+  z-index: 3;
+}
+.rack-ear {
+  width: 10px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  align-items: center;
+  background: #667587;
+  border-inline: 1px solid #526174;
+}
+.rack-ear i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #233243;
+  box-shadow: 0 1px #c4cdd8;
+}
+.rack-front-content {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  padding: 2px 8px;
+  gap: 3px;
+}
+.rack-front-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.1;
+}
+.rack-front-label strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 600;
+}
+.rack-front-label > span {
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.rack-front-hardware {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 8px;
+}
+.rack-front-ports {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 3px;
+  width: 78%;
+}
+.rack-front-ports i {
+  display: block;
+  height: 7px;
+  background: #1b2837;
+  border: 1px solid #4b5968;
+  box-shadow: inset 0 -2px #adb58a;
+}
+.rack-front-drives {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  width: 78%;
+  gap: 4px;
+}
+.rack-front-drives > i {
+  height: 9px;
+  position: relative;
+  background: #374453;
+  border: 1px solid #637487;
+  border-radius: 1px;
+  box-shadow: inset 0 2px #1f2c39;
+}
+.rack-front-drives b {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 2px;
+  height: 2px;
+  background: #9bc1a8;
+}
+.rack-front-vents {
+  width: 60%;
+  height: 9px;
+  background: repeating-linear-gradient(90deg, #48586a 0 2px, transparent 2px 5px);
+}
+.rack-front-status {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.rack-front-status > i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #4f6272;
+}
+.rack-front-status > i.on {
+  background: #b2e4b7;
+}
+.rack-front-status > b {
+  height: 7px;
+  width: 7px;
+  border: 1px solid #516379;
+  border-radius: 50%;
+}
+.rack-equipment.ups {
+  background: linear-gradient(180deg, #526172, #354455);
+  border-color: #6a7a8d;
+  color: #e8eef5;
+}
+.rack-front-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  background: #152b32;
+  color: #d0e8cd;
+  border: 1px solid #6b7b87;
+  font-size: 9px;
+}
+.rack-front-display > span {
+  font-size: 8px;
+}
+.rack-front-description {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 9px;
+  opacity: 0.85;
+}
+@container (max-height: 26px) {
+  .rack-front-hardware,
+  .rack-front-description {
+    display: none;
+  }
+  .rack-front-label strong {
+    font-size: 9px;
+  }
+}
+@container (max-height: 14px) {
+  .rack-front-content {
+    padding: 0 4px;
+  }
+  .rack-front-label strong,
+  .rack-front-label > span {
+    font-size: 8px;
+    line-height: 1;
+  }
+}
+.rack-cabinet-plinth {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 22px;
+  border: 1px solid #17202b;
+  background: linear-gradient(#3d4b5c, #263240);
+  border-radius: 0 0 4px 4px;
+}
+.rack-cabinet-plinth > span {
+  width: 5px;
+  height: 5px;
+  background: #172331;
+  border-radius: 50%;
+  box-shadow: 0 1px #6b7888;
+}
+.rack-cabinet-plinth > i {
+  height: 6px;
+  width: 70%;
+  background: repeating-linear-gradient(90deg, #14202e 0 2px, transparent 2px 5px);
+}
+.rack-cabinet-feet {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 9px;
+}
+.rack-cabinet-feet i {
+  display: block;
+  width: 32px;
+  height: 9px;
+  background: #243140;
+  border-radius: 0 0 3px 3px;
+}
+.rack-preview-info {
+  background: #fafbfd;
+  border-left: 1px solid #dce1e8;
+  padding: 24px 18px;
+}
+.rack-preview-info h3 {
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+.rack-preview-info p {
+  color: #5c6c80;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.rack-preview-info dl {
+  margin: 24px 0;
+}
+.rack-preview-info dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid #e2e7ed;
+}
+.rack-preview-info dt {
+  color: #5c6c80;
+}
+.rack-preview-info dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.rack-preview-info button {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.rack-preview-info .field-hint {
+  margin-top: 24px;
+}
+@media (max-width: 720px) {
+  .rack-preview-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rack-preview-info {
+    border-left: 0;
+    border-top: 1px solid #dce1e8;
+    padding: 18px;
+  }
+  .rack-preview-toolbar {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+  .rack-preview-toolbar p {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .rack-stage {
+    padding: 18px 14px 24px;
+  }
+  .rack-cabinet {
+    min-width: 260px;
+  }
+  .rack-overview {
+    padding-right: 0;
+  }
+}

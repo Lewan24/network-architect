@@ -54,6 +54,19 @@ export function PortsEditor({
         <div>
           {port ? (
             <>
+              {device.radiusNas &&
+                ['switch', 'switch-l3'].includes(device.kind) &&
+                port.connector === 'rj45' && (
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={!!port.dot1x}
+                      disabled={port.mode === 'trunk'}
+                      onChange={(e) => update(port.id, { dot1x: e.target.checked })}
+                    />
+                    802.1X / RADIUS na porcie dostępowym
+                  </label>
+                )}
               <PortFields port={port} network={network} patch={(p) => update(port.id, p)} />
               <button
                 type="button"

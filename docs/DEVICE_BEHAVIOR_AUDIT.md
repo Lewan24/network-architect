@@ -1,5 +1,7 @@
 # Audyt modelu urządzeń
 
+Uzupełnienie: model obejmuje teraz również laptop, IoT/Raspberry Pi, NVR, mini serwer, UPS, pasywną szafę RACK oraz serwer RADIUS. Kontrola 802.1X/NAS nadaje VLAN przed DHCP i blokuje nieautoryzowane urządzenia niezależnie od ich ustawień IP. [Zakres, testy i ograniczenia AAA](./RADIUS.md). NVR i UPS mają parametry planistyczne, a RACK jest niezależny od topologii sieciowej.
+
 Przegląd: 2026-11-12. Model rozszerzono następnie o [porty, interfejsy, media, PoE i diagnostykę](./PORTS_AND_DIAGNOSTICS.md). Sprawdzono wszystkie rodzaje z `Kind`, tworzenie urządzeń, topologię, adresowanie, DHCP, DNS, routing, ACL, NAT i dostępność usług. Wnioski dotyczą modelu aplikacji, a nie testów fizycznych urządzeń. Podstawę techniczną stanowią poniższe dokumenty producentów i RFC; wybór domyślnych usług i polityk pozostaje profilem aplikacji.
 
 ## Wyniki dla poszczególnych urządzeń

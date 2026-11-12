@@ -30,6 +30,7 @@ import {
 } from '../model/network';
 import type { Device, Network, Probe, Result, StaticRoute } from '../model/networkTypes';
 type EngineOptions = {
+  controlPlane?: boolean;
   reply?: boolean;
   sourceAddress?: string;
   stateful?: Set<string>;
@@ -74,6 +75,8 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
     steps: steps.length ? steps : [reason],
     linkPath: [...traversedLinks],
   });
+  if (source?.kind === 'rack' || byId.get(probe.destination)?.kind === 'rack')
+    return fail('Szafa RACK nie jest uczestnikiem komunikacji sieciowej.');
   if (!source) return fail('Wybierz źródło komunikacji.');
   if (source.kind === 'switch-unmanaged')
     return fail('Switch niezarządzalny nie ma interfejsu IP i nie może być źródłem testu.');
@@ -295,8 +298,14 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
       if (
         id !== from &&
         [
+          'iot',
+          'laptop',
+          'nvr',
+          'mini-server',
+          'ups',
           'server',
           'dns',
+          'radius',
           'camera',
           'workstation',
           'mobile-phone',
@@ -717,6 +726,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
       },
       {
         reply: true,
+        controlPlane: options.controlPlane,
         sourceAddress: targetIp,
         stateful,
         ...(translation || publicOwner
@@ -755,7 +765,23 @@ export function simulateNetwork(
   probe: Probe,
   options: EngineOptions = {},
 ): Result {
-  const leased = reconcileDhcp(network);
+  const leased = options.controlPlane ? network : reconcileDhcp(network);
+  if (!options.controlPlane) {
+    const client = leased.devices.find(
+      (d) =>
+        (d.id === probe.source || d.id === probe.destination || d.ip === probe.destination) &&
+        d.accessSession &&
+        d.accessSession.state !== 'accepted',
+    );
+    if (client?.accessSession)
+      return {
+        ok: false,
+        path: [probe.source],
+        reason: client.accessSession.reason,
+        steps: [client.accessSession.reason],
+        verdict: 'blocked',
+      };
+  }
   const hw = hardwareState(leased);
   const targetDevice = leased.devices.find(
     (d) =>
@@ -833,6 +859,11 @@ export function simulateNetwork(
       result.reason += ' ' + [...new Set(errors)].join(' ');
       result.steps[result.steps.length - 1] = result.reason;
     }
+  }
+  if (!options.controlPlane) {
+    const session = leased.devices.find((d) => d.id === probe.source)?.accessSession;
+    if (session && result.steps.length)
+      result.steps[0] = `${session.reason} Accounting: ${session.accounting}. ${result.steps[0]}`;
   }
   return result;
 }

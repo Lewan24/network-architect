@@ -10,6 +10,16 @@ afterEach(() => {
 });
 
 describe('device artwork registry', () => {
+  it('renders separate artwork for cabinets and rack servers', () => {
+    expect(deviceArtwork.rack?.src).toBe('/devices/rack.png');
+    expect(deviceArtwork.server?.src).toBe('/devices/rack-server.png');
+    expect(renderToStaticMarkup(createElement(DeviceGlyph, { kind: 'rack' }))).toContain(
+      'href="/devices/rack.png"',
+    );
+    expect(renderToStaticMarkup(createElement(DeviceGlyph, { kind: 'server' }))).toContain(
+      'href="/devices/rack-server.png"',
+    );
+  });
   it('keeps the vector drawing when no custom artwork is configured', () => {
     delete deviceArtwork.router;
     const markup = renderToStaticMarkup(createElement(DeviceGlyph, { kind: 'router' }));

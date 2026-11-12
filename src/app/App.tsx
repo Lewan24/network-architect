@@ -28,6 +28,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ContextMenu, MenuItem } from '../components/ContextMenu';
 import { DeviceLibrary } from '../components/DeviceLibrary';
 import { HelpDialog } from '../components/HelpDialog';
+import { RackDialog } from '../editors/RackDialog';
 import { DeviceDialog, type DeviceTab } from '../editors/DeviceDialog';
 import { reconcileDhcp } from '../model/dhcp';
 import { VlanDialog } from '../editors/VlanDialog';
@@ -240,6 +241,10 @@ export function App() {
     setConnectionError('');
     const device = net.devices.find((d) => d.id === id);
     if (!device) return;
+    if (device.kind === 'rack') {
+      openEditor(id);
+      return;
+    }
     setContext(null);
     setTool('connect');
     setConnection(id);
@@ -249,6 +254,11 @@ export function App() {
       notify('Wybierz hypervisor dla karty wirtualnej. Nie zajmie to fizycznego gniazda hosta.');
   }
   function connect(id: string) {
+    if (net.devices.find((d) => d.id === id)?.kind === 'rack') {
+      cancelConnection();
+      openEditor(id);
+      return;
+    }
     if (!connection) {
       beginConnection(id);
       return;
@@ -666,7 +676,19 @@ export function App() {
             }}
           />
         )}
-      {editDevice && (
+      {editDevice?.kind === 'rack' && (
+        <RackDialog
+          key={editDevice.id}
+          device={editDevice}
+          network={net}
+          close={() => setEditing(null)}
+          save={(device) => {
+            commit({ ...net, devices: net.devices.map((d) => (d.id === device.id ? device : d)) });
+            setEditing(null);
+          }}
+        />
+      )}
+      {editDevice && editDevice.kind !== 'rack' && (
         <DeviceDialog
           key={`${editDevice.id}:${editingTab}`}
           initialTab={editingTab}
@@ -761,7 +783,7 @@ export function App() {
                       beginConnection(d.id);
                     }}
                   >
-                    Połącz z urządzeniem
+                    {d.kind === 'rack' ? 'Układ i montaż w szafie' : 'Połącz z urządzeniem'}
                   </MenuItem>
                   <MenuItem icon={<Copy />} action={() => duplicate(d.id)}>
                     Duplikuj
@@ -771,26 +793,32 @@ export function App() {
                       Odnów DHCP / DNS
                     </MenuItem>
                   )}
-                  <MenuItem
-                    icon={<Power />}
-                    action={() =>
-                      commit({
-                        ...net,
-                        devices: net.devices.map((x) =>
-                          x.id === d.id ? { ...x, online: !x.online } : x,
-                        ),
-                      })
-                    }
-                  >
-                    {d.online ? 'Wyłącz urządzenie' : 'Włącz urządzenie'}
-                  </MenuItem>
+                  {d.kind !== 'rack' && (
+                    <MenuItem
+                      icon={<Power />}
+                      action={() =>
+                        commit({
+                          ...net,
+                          devices: net.devices.map((x) =>
+                            x.id === d.id ? { ...x, online: !x.online } : x,
+                          ),
+                        })
+                      }
+                    >
+                      {d.online ? 'Wyłącz urządzenie' : 'Włącz urządzenie'}
+                    </MenuItem>
+                  )}
                   <hr />
-                  <MenuItem icon={<Play />} action={() => targetProbe(d.id, 'source')}>
-                    Ustaw jako źródło testu
-                  </MenuItem>
-                  <MenuItem icon={<Play />} action={() => targetProbe(d.id, 'destination')}>
-                    Ustaw jako cel testu
-                  </MenuItem>
+                  {d.kind !== 'rack' && (
+                    <>
+                      <MenuItem icon={<Play />} action={() => targetProbe(d.id, 'source')}>
+                        Ustaw jako źródło testu
+                      </MenuItem>
+                      <MenuItem icon={<Play />} action={() => targetProbe(d.id, 'destination')}>
+                        Ustaw jako cel testu
+                      </MenuItem>
+                    </>
+                  )}
                   <hr />
                   <MenuItem danger icon={<Trash />} action={() => remove(d.id)}>
                     Usuń urządzenie <kbd>Del</kbd>

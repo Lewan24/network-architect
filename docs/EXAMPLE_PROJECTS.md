@@ -1,16 +1,20 @@
 # Projekty i laboratoria edukacyjne
 
+Każdy projekt oraz każda para ćwiczeń ma gałąź AAA z RADIUS, AP Enterprise, switchem 802.1X, laptopami, Raspberry Pi, mini serwerem, NVR, UPS i szafą RACK 24U. Starsze zastępcze komputery/NVR są zastąpione właściwymi typami tam, gdzie odpowiada to ich roli. Oryginalne celowe błędy antywzorca i ćwiczeń pozostają zachowane.
+
+W Poradniku są skróty do kont RADIUS, profilu laptopa oraz montażu szafy. Duże projekty mają dodatkowe scenariusze: administrator → mini serwer, NAS → accounting oraz IoT → usługa blokowana ACL. Nowa para laboratoriów RADIUS porównuje złe i poprawne hasło konta `student`. [Konfiguracja i konta demonstracyjne](./RADIUS.md).
+
 W menu **Przykład** są projekty praktyczne, celowo błędny antywzorzec i rozwijana grupa małych laboratoriów. Przycisk **Poradnik** otwiera plan projektowania, omówienia rozwiązań, źródła oraz porównanie „problem → naprawa”. Każdy wariant jest normalnym edytowalnym projektem: można zmienić reguły, uruchomić pakiet, eksportować JSON i cofać zmiany.
 
 ## Projekty praktyczne
 
 | Projekt                | Zakres                                                  | Co sprawdzić                                                                                                                            |
 | ---------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Biuro, serwery i Wi-Fi | 22 urządzenia, 7 VLAN-ów, Hyper-V, drukarka, kamery PoE | Istniejące laboratorium i jego 24 scenariusze; szczegóły w [DEMO_NETWORK.md](./DEMO_NETWORK.md)                                         |
-| Mała firma             | 17 urządzeń, 6 VLAN-ów                                  | Administracja, drukowanie IPP, udziały SMB, odizolowani goście, NVR i dwie kamery; firewall → ACL, switch → Porty i PoE, VLAN 10 → DHCP |
-| Home lab               | 13 urządzeń, 5 VLAN-ów                                  | Proxmox z VM Home Assistant, NAS, prywatny DNS home.arpa, odseparowane IoT i piaskownica; panel hosta tylko dla administratora          |
-| Duża firma             | 35 urządzeń, 9 VLAN-ów                                  | DMZ → aplikacja → dane, dwie zapory, bastion, kopie zapasowe, pliki, drukarki, CCTV i goście; trasa do danych i reguły obu zapór        |
-| Antywzorzec            | 10 urządzeń, 2 VLAN-y (LAN i infrastruktura)            | Goście, kamera i pliki w jednej domenie L2; otwarte SSH z WAN, permit any i aktywne nieużywane porty                                    |
+| Biuro, serwery i Wi-Fi | 32 urządzenia, 7 VLAN-ów, Hyper-V, drukarka, kamery PoE | Istniejące laboratorium i jego 24 scenariusze; szczegóły w [DEMO_NETWORK.md](./DEMO_NETWORK.md)                                         |
+| Mała firma             | 27 urządzeń, 6 VLAN-ów                                  | Administracja, drukowanie IPP, udziały SMB, odizolowani goście, NVR i dwie kamery; firewall → ACL, switch → Porty i PoE, VLAN 10 → DHCP |
+| Home lab               | 23 urządzeń, 5 VLAN-ów                                  | Proxmox z VM Home Assistant, NAS, prywatny DNS home.arpa, odseparowane IoT i piaskownica; panel hosta tylko dla administratora          |
+| Duża firma             | 45 urządzeń, 9 VLAN-ów                                  | DMZ → aplikacja → dane, dwie zapory, bastion, kopie zapasowe, pliki, drukarki, CCTV i goście; trasa do danych i reguły obu zapór        |
+| Antywzorzec            | 20 urządzeń, 2 VLAN-y (LAN i infrastruktura)            | Goście, kamera i pliki w jednej domenie L2; otwarte SSH z WAN, permit any i aktywne nieużywane porty                                    |
 
 Projekty stosują jeden główny switch dystrybucyjny. Przykład duży ma profil 48 portów RJ45 oraz dwa SFP+; nie udaje wdrożenia z HA, STP czy LACP. Zapas gniazd w poprawnych projektach jest administracyjnie wyłączony. Trunki mają jawną listę VLAN-ów i tagowany VLAN zarządzania 99, zgodnie z możliwościami modelu; rzeczywiste zachowanie native/tagging trzeba potwierdzić dla sprzętu.
 
@@ -28,7 +32,7 @@ W antywzorcu sukces testu gość → pliki oznacza niepożądaną łączność. 
 
 Projekt jest wyróżniony na planszy i w katalogu jako celowo błędny. Diagnostyka konfiguracji może nie zgłaszać żadnego błędu fizycznego — nie jest audytem wymagań biznesowych. Porównaj go z małą firmą i parami laboratoriów.
 
-## Sześć par laboratoriów
+## Siedem par laboratoriów
 
 1. **VLAN i granica L2:** hosty w tej samej sieci omijają firewall; po rozdzieleniu SSH jest blokowane, a HTTPS pozostaje dostępny.
 2. **Trunk i allowed VLAN:** brak VLAN-u na jednym końcu blokuje usługę; uzgodnienie list przywraca HTTPS.
@@ -36,6 +40,7 @@ Projekt jest wyróżniony na planszy i w katalogu jako celowo błędny. Diagnost
 4. **DHCP i DNS:** brak zakresu pozostawia klienta bez IP; poprawiony przydział i resolver umożliwiają test nazwy.
 5. **NAT:** publikacja panelu SSH jest usuwana; publiczny HTTPS pozostaje osiągalny.
 6. **PoE:** budżet 10 W PSE nie zasili kamery 12 W PD; poprawiony 30 W budżet wystarcza.
+7. **RADIUS / 802.1X:** błędne hasło odrzuca dostęp; poprawne konto student dostaje VLAN 20 i DHCP. Sprawdź też NAS, sekret, UDP/1812, accounting 1813 i uplink przenoszący przyznany VLAN.
 
 Poradnik wyjaśnia kroki, oczekiwania, powody i ograniczenia. W każdym wariancie przyciski wskazują konkretny port, ACL, NAT lub sieć/DHCP. Wczytanie z testem przygotowuje panel symulacji; pakiet wysyła użytkownik.
 

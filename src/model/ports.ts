@@ -61,6 +61,7 @@ export function makePort(id: string, connector: Port['connector'] = 'rj45', vlan
   };
 }
 export function defaultPorts(d: Device): Port[] {
+  if (d.kind === 'rack') return [];
   if (d.kind === 'vm') return [{ ...makePort('vnic0', 'virtual', d.vlan), mode: 'auto' }];
   if (d.kind === 'mobile-phone') return [{ ...makePort('wlan0', 'wifi', d.vlan), mode: 'auto' }];
   if (d.kind === 'accesspoint')
@@ -72,16 +73,19 @@ export function defaultPorts(d: Device): Port[] {
     ? 24
     : ['router', 'gateway', 'firewall'].includes(d.kind)
       ? 6
-      : d.kind === 'server'
-        ? 4
-        : 1;
+      : d.kind === 'mini-server' || d.kind === 'nvr'
+        ? 2
+        : d.kind === 'server'
+          ? 4
+          : 1;
   const ports = Array.from({ length: count }, (_, i) => ({
     ...makePort(`eth${i}`, 'rj45', d.vlan),
     ...(d.vlan === 0 || !switching(d) ? { mode: 'auto' as const } : {}),
   }));
   if (switching(d) || d.kind === 'server')
     ports.push(...[0, 1].map((i) => makePort(`sfp${i}`, 'sfp+', d.vlan)));
-  if (d.kind === 'workstation') ports.push({ ...makePort('wlan0', 'wifi', d.vlan), mode: 'auto' });
+  if (['workstation', 'laptop', 'iot'].includes(d.kind))
+    ports.push({ ...makePort('wlan0', 'wifi', d.vlan), mode: 'auto' });
   return ports;
 }
 export const isSharedPort = (p: Port, device?: Device) =>
@@ -136,8 +140,10 @@ export function prepareHardware(network: Network): Network {
       if (!d || !peer) continue;
       if (d.kind === 'vm' || peer.kind === 'vm') continue;
       const wireless =
-        (d.kind === 'accesspoint' && ['mobile-phone', 'workstation'].includes(peer.kind)) ||
-        (peer.kind === 'accesspoint' && ['mobile-phone', 'workstation'].includes(d.kind));
+        (d.kind === 'accesspoint' &&
+          ['mobile-phone', 'workstation', 'laptop', 'iot'].includes(peer.kind)) ||
+        (peer.kind === 'accesspoint' &&
+          ['mobile-phone', 'workstation', 'laptop', 'iot'].includes(d.kind));
       const p = d.ports.find(
         (p) =>
           (wireless ? p.connector === 'wifi' : p.connector === 'rj45') &&
@@ -281,8 +287,25 @@ export function transferVlan(
   const toSide = fromSide === 'a' ? 'b' : 'a';
   const physical = physicalLinkState(network, link);
   if (!physical.up) return { vlan, error: physical.errors.join(' ') };
-  const source = portFor(network, link, fromSide),
+  let source = portFor(network, link, fromSide),
     target = portFor(network, link, toSide);
+  const endpoint = network.devices.find(
+    (d) =>
+      (d.id === link.a || d.id === link.b) &&
+      d.accessSession &&
+      (d.accessSession.nasId === link.a || d.accessSession.nasId === link.b),
+  );
+  if (endpoint?.accessSession) {
+    const session = endpoint.accessSession;
+    if (session.state !== 'accepted') return { vlan, error: session.reason };
+    if (vlan !== session.vlan)
+      return { vlan, error: '802.1X: VLAN nie jest autoryzowany dla tej sesji.' };
+    if (link.cable === 'wireless' || (source?.connector === 'wifi' && target?.connector === 'wifi'))
+      return { vlan };
+    link = { ...link, mode: 'access', accessVlan: session.vlan };
+    source = source && { ...source, mode: 'access', accessVlan: session.vlan };
+    target = target && { ...target, mode: 'access', accessVlan: session.vlan };
+  }
   if ((!source || source.mode === 'auto') && (!target || target.mode === 'auto')) {
     const allowed =
       !vlan ||
@@ -424,7 +447,16 @@ export function operationalNetwork(network: Network): Network {
   const active = {
     ...network,
     devices: network.devices.map((d) => ({ ...d, online: !!hw.powered.get(d.id) })),
-    links: network.links.filter((l) => hw.links.get(l.id)?.up),
+    links: network.links.filter(
+      (l) =>
+        hw.links.get(l.id)?.up &&
+        !network.devices.some(
+          (d) =>
+            (d.id === l.a || d.id === l.b) &&
+            d.accessSession &&
+            d.accessSession.state !== 'accepted',
+        ),
+    ),
   };
   Object.defineProperty(active, OPERATIONAL, { value: hw, enumerable: false });
   Object.defineProperty(active, PORT_INDEX, {

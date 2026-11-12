@@ -1,6 +1,22 @@
 import type { Kind } from '../model/network';
 // Vector geometry keeps the isometric objects sharp at every canvas zoom level.
 export function BuiltinDeviceGlyph({ kind, color = '#839bbf' }: { kind: Kind; color?: string }) {
+  if (kind === 'radius')
+    return (
+      <g>
+        <BuiltinDeviceGlyph kind="server" color={color} />
+        <g transform="translate(24 -24)">
+          <path
+            d="M-17-21 0-27 17-21v18C17 8 0 17 0 17S-17 8-17-3Z"
+            fill="#edf0fb"
+            stroke="#6d7199"
+            strokeWidth="2"
+          />
+          <circle cy="-9" r="5" fill="none" stroke="#6d7199" strokeWidth="2" />
+          <path d="M-9 7c0-10 18-10 18 0" fill="none" stroke="#6d7199" strokeWidth="2" />
+        </g>
+      </g>
+    );
   if (kind === 'internet')
     return (
       <g stroke="#8c9aaa" strokeWidth="1.5" fill="white">
