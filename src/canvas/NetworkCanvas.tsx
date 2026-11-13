@@ -15,6 +15,7 @@ import {
 } from '@phosphor-icons/react';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { DeviceGlyph } from '../devices/DeviceGlyph';
+import { deviceCanvasScale } from './deviceSizing';
 import { fitCamera, toWorld, zoomAt, type Camera, type Point } from './canvasGeometry';
 import { kinds } from '../devices/deviceCatalog';
 import { rackPlacement } from '../model/racks';
@@ -613,6 +614,9 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
             .slice()
             .sort((a, b) => a.y - b.y)
             .map((d) => {
+              const glyphScale = deviceCanvasScale[d.kind];
+              const footprintScale = Math.max(0.65, glyphScale);
+              const hitTop = Math.min(-95, 12 - 107 * glyphScale);
               const index = path.indexOf(d.id);
               const arrived = index >= 0 && index <= reached;
               const isStop = blocked && d.id === path.at(-1);
@@ -700,10 +704,10 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                   }}
                 >
                   <rect
-                    x={-Math.max(58, d.name.length * 3.6)}
-                    y="-95"
-                    width={Math.max(116, d.name.length * 7.2)}
-                    height="178"
+                    x={-Math.max(58 * footprintScale, d.name.length * 3.6)}
+                    y={hitTop}
+                    width={Math.max(116 * footprintScale, d.name.length * 7.2)}
+                    height={83 - hitTop}
                     fill="transparent"
                   />
                   {(p.selected === d.id ||
@@ -711,6 +715,7 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                     p.selected === `zone:${d.vlan}`) && (
                     <path
                       d="M-58 0 0-34 58 0 0 34Z"
+                      transform={`scale(${footprintScale})`}
                       fill="#edf0ff"
                       stroke="#7c8ce1"
                       strokeWidth="1.5"
@@ -722,6 +727,7 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                       cy="2"
                       rx="49"
                       ry="28"
+                      transform={`scale(${footprintScale})`}
                       fill="none"
                       stroke={isStop ? '#cf8465' : '#8391d8'}
                       strokeWidth="2"
@@ -729,19 +735,21 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                     />
                   )}
                   <g opacity={d.online && hw.powered.get(d.id) !== false ? 1 : 0.4}>
-                    <DeviceGlyph kind={d.kind} color={kinds[d.kind].color} />
+                    <g transform={`translate(0 12) scale(${glyphScale}) translate(0 -12)`}>
+                      <DeviceGlyph kind={d.kind} color={kinds[d.kind].color} />
+                    </g>
                     {d.kind !== 'rack' && (
                       <g>
                         <circle
-                          cx="27"
-                          cy="-23"
+                          cx={27 * glyphScale}
+                          cy={12 - 35 * glyphScale}
                           r="5"
                           fill={deviceStatuses.get(d.id)?.gateway ? '#229954' : '#d64545'}
                         >
                           <title>Ping do bramy</title>
                         </circle>
                         {(deviceStatuses.get(d.id)?.services ?? 0) > 0 && (
-                          <g transform="translate(22 -12)">
+                          <g transform={`translate(${22 * glyphScale} ${12 - 24 * glyphScale})`}>
                             <title>Liczba uruchomionych usług</title>
                             <rect width="74" height="20" rx="6" fill="#ffffff" stroke="#718096" />
                             <text

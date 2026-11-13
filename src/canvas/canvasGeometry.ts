@@ -17,7 +17,7 @@ export function fitCamera(points: Point[], width: number, height: number): Camer
   if (!points.length) return { x: width / 2, y: height / 2, zoom: 1 };
   const minX = Math.min(...points.map((p) => p.x)) - 100;
   const maxX = Math.max(...points.map((p) => p.x)) + 100;
-  const minY = Math.min(...points.map((p) => p.y)) - 110;
+  const minY = Math.min(...points.map((p) => p.y)) - 140;
   const maxY = Math.max(...points.map((p) => p.y)) + 90;
   const zoom = Math.min(
     1.35,
