@@ -1,3 +1,4 @@
+import { belongsToVlan } from '../model/interfaces';
 import { SettingsSection } from '../components/SettingsSection';
 import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Check, Info, Trash } from '@phosphor-icons/react';
@@ -13,6 +14,7 @@ export function VlanEditorDialog({
   network,
   save,
   remove,
+  allowUsedRemoval = false,
   close,
 }: {
   vlan: Vlan;
@@ -20,6 +22,7 @@ export function VlanEditorDialog({
   network: Network;
   save: (vlan: Vlan) => void;
   remove: () => void;
+  allowUsedRemoval?: boolean;
   close: () => void;
 }) {
   const [draft, setDraft] = useState(() => structuredClone(vlan));
@@ -118,11 +121,27 @@ export function VlanEditorDialog({
             </div>
             {locked && (
               <p className="field-hint">
-                ID i usuwanie są zablokowane, ponieważ sieć jest używana: {references.join(', ')}.
+                Zmiana ID jest zablokowana, ponieważ sieć jest używana: {references.join(', ')}.
                 Pozostałe ustawienia można edytować.
               </p>
             )}
           </SettingsSection>
+          {locked && (
+            <div className="vlan-removal-info">
+              <strong>Urządzenia w sieci</strong>
+              <p>
+                {network.devices
+                  .filter((d) => belongsToVlan(d, originalId!))
+                  .map((d) => d.name)
+                  .join(', ') || 'Odwołania w konfiguracji portów lub reguł.'}
+              </p>
+              <p>
+                {allowUsedRemoval
+                  ? 'Usunięcie wyczyści adresy i przypisania do tej sieci, wyłączy jej interfejsy i porty access/native oraz usunie zależne reguły ACL. Urządzenia i kable pozostaną na schemacie. Operację możesz cofnąć.'
+                  : 'Aby usunąć zajętą sieć i wyczyścić przypisania, otwórz globalny dialog „Sieci i VLAN-y”.'}
+              </p>
+            </div>
+          )}
           <ScopeFields vlan={draft} network={network} patch={patch} />
           <p className="info-line">
             <Info /> Zmiana podsieci wymaga zgodnych adresów statycznych. Nowe adresy automatyczne
@@ -139,8 +158,12 @@ export function VlanEditorDialog({
             <button
               type="button"
               className="secondary"
-              disabled={locked}
-              title={locked ? 'Najpierw usuń odwołania do tej sieci' : 'Usuń sieć'}
+              disabled={locked && !allowUsedRemoval}
+              title={
+                locked && !allowUsedRemoval
+                  ? 'Usuń sieć w globalnym dialogu VLAN-ów'
+                  : 'Usuń sieć i wyczyść przypisania'
+              }
               onClick={() => {
                 try {
                   remove();

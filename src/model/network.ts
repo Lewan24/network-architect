@@ -214,6 +214,42 @@ export function validateDeviceConfig(d: Device, network?: Network, strictNeighbo
       d.dnsServerIds.some((id) => typeof id !== 'string'))
   )
     throw Error('Nieprawidłowa lista resolverów DNS.');
+  if (d.publicDns !== undefined && (typeof d.publicDns !== 'boolean' || d.kind !== 'dns'))
+    throw Error('Tryb publicznego DNS jest dostępny tylko dla serwera DNS.');
+  if (d.publicDns && (!isPublicModelIp(d.ip) || d.ipMode === 'auto'))
+    throw Error('Publiczny DNS wymaga statycznego publicznego adresu IPv4.');
+  for (const service of d.services ?? []) {
+    if (
+      service.type !== undefined &&
+      !['generic', 'http', 'https', 'dns', 'ssh', 'proxy'].includes(service.type)
+    )
+      throw Error('Nieprawidłowy typ usługi.');
+    if (service.type === 'proxy' && service.protocol !== 'TCP')
+      throw Error('Reverse proxy wymaga TCP.');
+    if (service.proxyHosts !== undefined) {
+      if (!Array.isArray(service.proxyHosts) || service.proxyHosts.length > 256)
+        throw Error('Nieprawidłowa lista hostów proxy.');
+      const domains = new Set<string>();
+      for (const h of service.proxyHosts) {
+        if (
+          !h ||
+          typeof h.id !== 'string' ||
+          typeof h.domain !== 'string' ||
+          !validHostname(h.domain) ||
+          typeof h.target !== 'string' ||
+          (!validIp(h.target) && !validHostname(h.target)) ||
+          !Number.isInteger(h.port) ||
+          h.port < 1 ||
+          h.port > 65535 ||
+          typeof h.enabled !== 'boolean'
+        )
+          throw Error('Host proxy wymaga domeny, docelowego IPv4 lub DNS i portu 1–65535.');
+        const domain = h.domain.toLowerCase().replace(/\.$/, '');
+        if (domains.has(domain)) throw Error('Domeny hostów proxy muszą być unikalne w usłudze.');
+        domains.add(domain);
+      }
+    }
+  }
   if (d.dnsRecords !== undefined) {
     if (!Array.isArray(d.dnsRecords) || d.dnsRecords.length > 256)
       throw Error('Nieprawidłowa strefa DNS.');
@@ -541,6 +577,51 @@ export function parseNetwork(text: string): Network {
     n.links.length > 2000
   )
     throw Error('Nieprawidłowy format projektu.');
+  if (
+    n.scenarios !== undefined &&
+    (!Array.isArray(n.scenarios) ||
+      n.scenarios.length > 1000 ||
+      n.scenarios.some(
+        (s: any) =>
+          !s ||
+          typeof s.id !== 'string' ||
+          typeof s.name !== 'string' ||
+          typeof s.expected !== 'boolean' ||
+          !s.probe ||
+          typeof s.probe.source !== 'string' ||
+          typeof s.probe.destination !== 'string' ||
+          !['ICMP', 'TCP', 'UDP'].includes(s.probe.protocol) ||
+          !Number.isInteger(s.probe.port) ||
+          s.probe.port < 0 ||
+          s.probe.port > 65535,
+      ))
+  )
+    throw Error('Nieprawidłowe scenariusze projektu.');
+  if (n.annotations !== undefined) {
+    if (!Array.isArray(n.annotations) || n.annotations.length > 1000)
+      throw Error('Nieprawidłowa lista etykiet tekstowych.');
+    const ids = new Set<string>();
+    for (const a of n.annotations) {
+      if (
+        !a ||
+        typeof a.id !== 'string' ||
+        !a.id.startsWith('text:') ||
+        ids.has(a.id) ||
+        typeof a.text !== 'string' ||
+        !a.text.trim() ||
+        a.text.length > 2000 ||
+        !Number.isFinite(a.x) ||
+        !Number.isFinite(a.y) ||
+        !Number.isFinite(a.fontSize) ||
+        a.fontSize < 12 ||
+        a.fontSize > 96 ||
+        typeof a.color !== 'string' ||
+        !/^#[a-f0-9]{6}$/i.test(a.color)
+      )
+        throw Error('Nieprawidłowa etykieta tekstowa.');
+      ids.add(a.id);
+    }
+  }
   validateRadiusEvents(n);
   const ids = new Set<string>();
   for (const d of n.devices) {

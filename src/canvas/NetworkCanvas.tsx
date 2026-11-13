@@ -1,3 +1,4 @@
+import { gatewayReachable, runningServices } from '../simulation/deviceStatus';
 import { cableGeometry } from './linkGeometry';
 import { belongsToVlan, supportsInterfaces } from '../model/interfaces';
 import { cableNames, hardwareState } from '../model/ports';
@@ -34,7 +35,7 @@ export type CanvasHandle = {
   center: () => Point;
 };
 export type ContextTarget = {
-  type: 'device' | 'link' | 'canvas' | 'zone';
+  type: 'device' | 'link' | 'canvas' | 'zone' | 'text';
   id?: string;
   screen: Point;
   world: Point;
@@ -49,6 +50,7 @@ type Props = {
   editInterfaces: (id: string) => void;
   move: (id: string, point: Point) => void;
   moveGroup: (vlanId: number, delta: Point) => void;
+  addText: () => void;
   add: (kind: Kind, point: Point) => void;
   remove: () => void;
   connect: (id: string) => void;
@@ -128,6 +130,21 @@ function Packet({ flight, network }: { flight: Flight; network: Network }) {
 export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCanvas(p, ref) {
   const allLinks = useMemo(() => topologyLinks(p.network), [p.network]);
   const hw = useMemo(() => hardwareState(p.network), [p.network]);
+  const deviceStatuses = useMemo(
+    () =>
+      new Map(
+        p.network.devices
+          .filter((d) => d.kind !== 'rack')
+          .map((d) => [
+            d.id,
+            {
+              gateway: gatewayReachable(p.network, d),
+              services: runningServices(d).length,
+            },
+          ]),
+      ),
+    [p.network],
+  );
   const host = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const firstFit = useRef(false);
@@ -158,6 +175,11 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
   const spaceRef = useRef(false);
   function focusObject(id: string) {
     const link = topologyLinks(p.network).find((l) => l.id === id);
+    const annotation = p.network.annotations?.find((a) => a.id === id);
+    if (annotation) {
+      setCamera(fitCamera([annotation], size.width, size.height));
+      return;
+    }
     const points = id.startsWith('zone:')
       ? p.network.devices.filter((d) => belongsToVlan(d, Number(id.slice(5))))
       : p.network.devices.filter(
@@ -168,7 +190,14 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
   useImperativeHandle(
     ref,
     () => ({
-      fit: () => setCamera(fitCamera(p.network.devices, size.width, size.height)),
+      fit: () =>
+        setCamera(
+          fitCamera(
+            [...p.network.devices, ...(p.network.annotations ?? [])],
+            size.width,
+            size.height,
+          ),
+        ),
       focus: focusObject,
       center: () => toWorld({ x: size.width / 2, y: size.height / 2 }, camera),
     }),
@@ -180,7 +209,13 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
       setSize({ width: box.width, height: box.height });
       if (!firstFit.current && box.width > 100 && box.height > 100) {
         firstFit.current = true;
-        setCamera(fitCamera(p.network.devices, box.width, box.height));
+        setCamera(
+          fitCamera(
+            [...p.network.devices, ...(p.network.annotations ?? [])],
+            box.width,
+            box.height,
+          ),
+        );
       } else if (previousSize.current) {
         const old = previousSize.current;
         setCamera((c) => ({
@@ -695,6 +730,34 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
                   )}
                   <g opacity={d.online && hw.powered.get(d.id) !== false ? 1 : 0.4}>
                     <DeviceGlyph kind={d.kind} color={kinds[d.kind].color} />
+                    {d.kind !== 'rack' && (
+                      <g>
+                        <circle
+                          cx="27"
+                          cy="-23"
+                          r="5"
+                          fill={deviceStatuses.get(d.id)?.gateway ? '#229954' : '#d64545'}
+                        >
+                          <title>Ping do bramy</title>
+                        </circle>
+                        {(deviceStatuses.get(d.id)?.services ?? 0) > 0 && (
+                          <g transform="translate(22 -12)">
+                            <title>Liczba uruchomionych usług</title>
+                            <rect width="74" height="20" rx="6" fill="#ffffff" stroke="#718096" />
+                            <text
+                              x="37"
+                              y="14"
+                              textAnchor="middle"
+                              fontSize="11"
+                              fontWeight="600"
+                              fill="#172b4d"
+                            >
+                              Usługi: {deviceStatuses.get(d.id)?.services ?? 0}
+                            </text>
+                          </g>
+                        )}
+                      </g>
+                    )}
                   </g>
                   <g transform="translate(0 44)" pointerEvents="none">
                     <rect
@@ -745,6 +808,86 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
               );
             })}
           {p.flight && <Packet flight={p.flight} network={p.network} />}
+          {(p.network.annotations ?? []).map((a) => {
+            const point = preview?.[a.id] ?? a;
+            return (
+              <g
+                key={a.id}
+                transform={`translate(${point.x} ${point.y})`}
+                className={`canvas-text ${p.selected === a.id ? 'selected' : ''}`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Tekst: ${a.text}`}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  p.edit(a.id);
+                }}
+                onContextMenu={(e) => context(e, 'text', a.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.stopPropagation();
+                    p.edit(a.id);
+                  }
+                  if (e.key.startsWith('Arrow')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    p.move(a.id, {
+                      x: a.x + (e.key === 'ArrowLeft' ? -10 : e.key === 'ArrowRight' ? 10 : 0),
+                      y: a.y + (e.key === 'ArrowUp' ? -10 : e.key === 'ArrowDown' ? 10 : 0),
+                    });
+                  }
+                }}
+                onPointerDown={(e) => {
+                  if (e.button !== 0 || p.tool === 'pan' || spaceRef.current) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  p.select(a.id);
+                  gesture.current = {
+                    type: 'device',
+                    pointerId: e.pointerId,
+                    start: screen(e),
+                    camera,
+                    id: a.id,
+                    original: { x: a.x, y: a.y },
+                    moved: false,
+                  };
+                  e.currentTarget.setPointerCapture(e.pointerId);
+                }}
+              >
+                <rect
+                  x={-8}
+                  y={-a.fontSize}
+                  width={
+                    Math.max(...a.text.split('\n').map((line) => line.length), 1) *
+                      a.fontSize *
+                      0.75 +
+                    16
+                  }
+                  height={a.text.split('\n').length * a.fontSize * 1.3 + 12}
+                  fill="transparent"
+                  pointerEvents="all"
+                  stroke={p.selected === a.id ? '#a5b4fc' : 'none'}
+                  strokeDasharray="5 4"
+                  rx="4"
+                />
+                <text
+                  fill={a.color}
+                  fontSize={a.fontSize}
+                  fontWeight="600"
+                  stroke={p.selected === a.id ? '#c7d2fe' : 'white'}
+                  strokeWidth="4"
+                  paintOrder="stroke"
+                  style={{ whiteSpace: 'pre' }}
+                >
+                  {a.text.split('\n').map((line, i) => (
+                    <tspan key={i} x="0" dy={i ? a.fontSize * 1.3 : 0}>
+                      {line || ' '}
+                    </tspan>
+                  ))}
+                </text>
+              </g>
+            );
+          })}
         </g>
       </svg>
       <div className="floating-tools">
@@ -772,6 +915,9 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
         >
           <LinkSimple />
         </button>
+        <button onClick={p.addText} title="Dodaj tekst" aria-label="Dodaj tekst">
+          <span style={{ fontSize: 18, fontWeight: 600 }}>T</span>
+        </button>
       </div>
       {p.connection && (
         <div className="canvas-instruction connection-instruction">
@@ -786,7 +932,9 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
           <span>
             {p.selected.startsWith('zone:')
               ? `${p.network.vlans.find((v) => v.id === Number(p.selected!.slice(5)))?.name} · cała sekcja`
-              : p.network.devices.find((d) => d.id === p.selected)?.name || 'Połączenie'}
+              : p.network.devices.find((d) => d.id === p.selected)?.name ||
+                p.network.annotations?.find((a) => a.id === p.selected)?.text ||
+                'Połączenie'}
           </span>
           <button onClick={() => p.edit(p.selected!)}>
             <GearSix /> Edytuj
@@ -812,7 +960,7 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
           )}
         </div>
       )}
-      {!devices.length && (
+      {!devices.length && !p.network.annotations?.length && (
         <div className="canvas-empty">
           <SquaresEmpty />
           <h2>Tu zaczyna się Twoja sieć</h2>
@@ -845,7 +993,11 @@ export const NetworkCanvas = forwardRef<CanvasHandle, Props>(function NetworkCan
           <button
             title="Dopasuj do sieci (F)"
             aria-label="Dopasuj widok do sieci"
-            onClick={() => setCamera(fitCamera(devices, size.width, size.height))}
+            onClick={() =>
+              setCamera(
+                fitCamera([...devices, ...(p.network.annotations ?? [])], size.width, size.height),
+              )
+            }
           >
             <ArrowsOutSimple />
           </button>

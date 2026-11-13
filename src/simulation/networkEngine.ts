@@ -30,6 +30,7 @@ import {
 } from '../model/network';
 import type { Device, Network, Probe, Result, StaticRoute } from '../model/networkTypes';
 type EngineOptions = {
+  proxyVisited?: string[];
   controlPlane?: boolean;
   reply?: boolean;
   sourceAddress?: string;
@@ -111,7 +112,11 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
         },
       };
     }
-    const result = simulateNetwork(network, { ...probe, destination: answer.address! }, options);
+    const result = simulateNetwork(
+      network,
+      { ...probe, destination: answer.address!, hostname: answer.name },
+      options,
+    );
     const query = answer.query!;
     const queryPath = tracePath(query);
     const deduplicate = queryPath.at(-1) === result.path[0];
@@ -179,7 +184,10 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
       requestedIp = selected.wanIp;
       selected = undefined;
     }
-    if (!publicAddresses(network).includes(requestedIp))
+    if (
+      !publicAddresses(network).includes(requestedIp) &&
+      !network.devices.some((d) => d.publicDns && d.ip === requestedIp)
+    )
       return externalFailure(
         'Internet nie adresuje prywatnych urządzeń. Cel musi być publicznym adresem WAN brzegu lub opublikowanym adresem NAT.',
       );
@@ -272,7 +280,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
       );
   }
   for (const d of [source, target]) {
-    if (!d || isRoutingDevice(d) || d.kind === 'internet') continue;
+    if (!d || isRoutingDevice(d) || d.kind === 'internet' || d.publicDns) continue;
     const scope = network.vlans.find((v) => v.id === d.vlan);
     if (
       activeInterface(d)
@@ -311,7 +319,6 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
           'mobile-phone',
           'vm',
           'printer',
-          'internet',
         ].includes(d.kind) &&
         !isHypervisor(d)
       )
@@ -407,7 +414,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
             gatewayDeviceId: undefined,
           }
         : undefined);
-    const normal = !isRoutingDevice(source!) && source!.kind !== 'internet';
+    const normal = !isRoutingDevice(source!) && source!.kind !== 'internet' && !source!.publicDns;
     if (normal && !scope)
       return {
         path: [source!.id],
@@ -510,6 +517,14 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
         ...steps,
         `${d.name}: ${[...messages, reason].join(' ')}`,
       ]);
+    if (d.kind === 'internet' && !isPublicModelIp(destinationIp))
+      return stop(
+        'Prywatny adres docelowy nie jest routowany w Internecie. Użyj publicznego adresu WAN i NAT.',
+      );
+    if (d.kind === 'internet' && !isPublicModelIp(sourceIp))
+      return stop(
+        'Prywatny adres źródła nie jest routowany w Internecie. Skonfiguruj NAT wyjściowy.',
+      );
     if (i > 0) {
       const wireVlan = vlan || (!isRoutingDevice(d) ? d.vlan : 0);
       const prevRoute =
@@ -611,7 +626,12 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
         (r) =>
           (r.protocol === 'ANY' || r.protocol === probe.protocol) &&
           (r.port === '*' || (probe.protocol !== 'ICMP' && r.port === String(port))) &&
-          (!r.ingress || r.ingress === 'any' || r.ingress === (outside ? 'wan' : 'lan')) &&
+          (!r.ingress ||
+            r.ingress === 'any' ||
+            r.ingress ===
+              (outside || plan.path.slice(0, i).some((id) => byId.get(id)?.kind === 'internet')
+                ? 'wan'
+                : 'lan')) &&
           matchesAclAddress(r.source, sourceIp, network) &&
           matchesAclAddress(r.destination, destinationIp, network),
       );
@@ -627,7 +647,11 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
       );
     } else if (options.stateful?.has(d.id))
       messages.push('Odpowiedź dopuszczona przez stan wcześniej dozwolonego połączenia.');
-    if (hasWan(d) && target?.kind === 'internet') {
+    if (
+      hasWan(d) &&
+      (target?.kind === 'internet' ||
+        plan.path.slice(i + 1).some((id) => byId.get(id)?.kind === 'internet'))
+    ) {
       const nat = d.staticNat?.find((r) => r.enabled && r.privateIp === sourceIp);
       if (options.sourceNat?.ownerId === d.id) {
         messages.push(`Odwrotna translacja połączenia: ${sourceIp} → ${options.sourceNat.ip}.`);
@@ -732,7 +756,9 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
         ...(translation || publicOwner
           ? { sourceNat: { ownerId: translation?.owner.id || publicOwner!.id, ip: requestedIp } }
           : {}),
-        ...(outboundOwner && target.kind === 'internet' && sourceIp !== source.ip
+        ...(outboundOwner &&
+        plan.path.some((id) => byId.get(id)?.kind === 'internet') &&
+        sourceIp !== source.ip
           ? {
               destinationNat: {
                 ownerId: outboundOwner.id,
@@ -755,6 +781,59 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
     if (!reply.ok) {
       result.verdict = 'unreachable';
       if (!reply.path.length) result.steps[result.steps.length - 1] += ` ${result.reason}`;
+    }
+  }
+  if (result.ok && !options.reply && target && probe.protocol === 'TCP') {
+    const service = (target.services ?? defaultServices(target.kind)).find(
+      (s) =>
+        s.enabled && s.protocol === probe.protocol && s.port === targetPort && s.type === 'proxy',
+    );
+    if (service && probe.hostname) {
+      const hostname = probe.hostname?.toLowerCase().replace(/\.$/, '');
+      const rule = service.proxyHosts?.find(
+        (h) => h.enabled && h.domain.toLowerCase().replace(/\.$/, '') === hostname,
+      );
+      if (!rule)
+        return {
+          ...result,
+          ok: false,
+          verdict: 'blocked',
+          reason: 'Reverse proxy: brak reguły dla domeny Host/SNI.',
+          steps: [...result.steps, 'Reverse proxy: brak pasującego hosta.'],
+        };
+      if (options.proxyVisited?.includes(target.id) || (options.proxyVisited?.length ?? 0) >= 8)
+        return { ...result, ok: false, verdict: 'blocked', reason: 'Wykryto pętlę reverse proxy.' };
+      const backend = simulateNetwork(
+        network,
+        {
+          source: target.id,
+          destination: rule.target,
+          protocol: 'TCP',
+          port: rule.port,
+          checkReply: true,
+          hostname,
+        },
+        { proxyVisited: [...(options.proxyVisited ?? []), target.id] },
+      );
+      return {
+        ...result,
+        ok: backend.ok,
+        verdict: backend.ok ? 'allowed' : backend.verdict,
+        reason: `Reverse proxy ${hostname} → ${rule.target}:${rule.port}: ${backend.reason}`,
+        path: [...result.path, ...backend.path.slice(1)],
+        linkPath: [...(result.linkPath ?? []), ...(backend.linkPath ?? [])],
+        returnPath: backend.ok
+          ? [...(backend.returnPath ?? []), ...(result.returnPath ?? []).slice(1)]
+          : backend.returnPath,
+        returnLinkPath: backend.ok
+          ? [...(backend.returnLinkPath ?? []), ...(result.returnLinkPath ?? [])]
+          : backend.returnLinkPath,
+        steps: [
+          ...result.steps,
+          `Reverse proxy: Host/SNI ${hostname} → ${rule.target}:${rule.port}.`,
+          ...backend.steps,
+        ],
+      };
     }
   }
   return result;

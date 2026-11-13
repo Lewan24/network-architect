@@ -1,5 +1,5 @@
 import { defaultServices } from '../devices/deviceCatalog';
-import { validHostname, validIp } from './network';
+import { isPublicModelIp, validHostname, validIp } from './network';
 import type { Network, Probe, Result } from './networkTypes';
 export type DnsAnswer = {
   ok: boolean;
@@ -97,15 +97,18 @@ export function resolveDns(
         reason: `DNS ${server.name}: NXDOMAIN — brak rekordu A dla ${name}.`,
       };
     const address = record.deviceId
-      ? network.devices.find((d) => d.id === record.deviceId)?.ip
+      ? server.publicDns
+        ? (network.devices.find((d) => d.id === record.deviceId)?.wanIp ??
+          network.devices.find((d) => d.id === record.deviceId)?.ip)
+        : network.devices.find((d) => d.id === record.deviceId)?.ip
       : record.address;
-    if (!address || !validIp(address))
+    if (!address || !validIp(address) || (server.publicDns && !isPublicModelIp(address)))
       return {
         ok: false,
         name,
         serverId,
         query: response,
-        reason: `DNS ${server.name}: rekord ${name} wskazuje urządzenie bez adresu lub usunięty cel.`,
+        reason: `DNS ${server.name}: rekord ${name} wskazuje nieprawidłowy adres, prywatny cel publicznej strefy lub usunięte urządzenie.`,
       };
     return {
       ok: true,

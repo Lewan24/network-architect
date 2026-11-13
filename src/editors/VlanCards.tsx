@@ -13,11 +13,13 @@ export function VlanCards({
   change,
   device,
   initialId,
+  removeUsedVlan,
 }: {
   network: Network;
   change: (vlans: Vlan[]) => void;
   device?: Device;
   initialId?: number;
+  removeUsedVlan?: (id: number) => void;
 }) {
   const [editing, setEditing] = useState<{ vlan: Vlan; originalId?: number } | null>(null);
   const [initialVlan] = useState(() => network.vlans.find((v) => v.id === initialId));
@@ -158,7 +160,13 @@ export function VlanCards({
                 : network.vlans.map((v) => (v.id === editing.originalId ? next : v)),
             );
           }}
-          remove={() => update(network.vlans.filter((v) => v.id !== editing.originalId))}
+          allowUsedRemoval={!!removeUsedVlan}
+          remove={() => {
+            if (removeUsedVlan && editing.originalId !== undefined) {
+              removeUsedVlan(editing.originalId);
+              setEditing(null);
+            } else update(network.vlans.filter((v) => v.id !== editing.originalId));
+          }}
         />
       )}
     </>

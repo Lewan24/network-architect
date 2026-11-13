@@ -104,6 +104,7 @@ export type Device = {
   services?: Service[];
   dnsServerIds?: string[];
   dnsRecords?: DnsRecord[];
+  publicDns?: boolean;
   platform?: string;
   radius?: { users: RadiusUser[]; clients: { nasId: string; secret: string }[] };
   radiusNas?: { serverId: string; secret: string; dynamicVlan: boolean; accounting: boolean };
@@ -172,7 +173,16 @@ export type DhcpLease = {
   gateway?: string;
 };
 
+export type ProxyHost = {
+  id: string;
+  domain: string;
+  target: string;
+  port: number;
+  enabled: boolean;
+};
 export type Service = {
+  type?: 'generic' | 'http' | 'https' | 'dns' | 'ssh' | 'proxy';
+  proxyHosts?: ProxyHost[];
   id: string;
   name: string;
   protocol: 'TCP' | 'UDP';
@@ -218,7 +228,16 @@ export type Link = {
   allowedVlans?: number[];
 };
 
+export type CanvasText = {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+};
 export type Network = {
+  annotations?: CanvasText[];
   /** Example provenance; preserved through export and edits, never an authorization flag. */
   exampleId?: string;
   name: string;
@@ -226,6 +245,7 @@ export type Network = {
   links: Link[];
   vlans: Vlan[];
   radiusEvents?: RadiusEvent[];
+  scenarios?: { id: string; name: string; probe: Probe; expected: boolean }[];
 };
 
 export type Vlan = {
@@ -250,6 +270,7 @@ export type Probe = {
   protocol: Protocol;
   port: number;
   checkReply?: boolean;
+  hostname?: string;
   sourceInterfaceId?: string;
   destinationInterfaceId?: string;
 };
@@ -265,6 +286,7 @@ export type Result = {
     port: number;
   };
   bottleneckMbps?: number;
+  hostname?: string;
   sourceInterfaceId?: string;
   destinationInterfaceId?: string;
   verdict?: 'allowed' | 'blocked' | 'closed' | 'unreachable';

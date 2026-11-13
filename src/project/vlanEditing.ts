@@ -71,3 +71,68 @@ export function createVlan(network: Network, device?: Device): Vlan {
   }
   throw Error('Brak wolnej prywatnej podsieci /24. Zmień konfigurację istniejących sieci.');
 }
+
+/** Remove memberships without deleting physical devices or cables. */
+export function removeVlan(network: Network, id: number): Network {
+  const clean = <T extends { vlan: number; ip: string; lease?: unknown }>(n: T): T =>
+    n.vlan === id ? { ...n, vlan: 0, ip: '', lease: undefined, gateway: '', ipMode: 'auto' } : n;
+  return {
+    ...network,
+    vlans: network.vlans.filter((v) => v.id !== id),
+    devices: network.devices.map((d) => ({
+      ...clean(d),
+      interfaces: d.interfaces?.map((n) =>
+        n.vlan === id
+          ? { ...clean(n), ipMode: 'auto' as const, enabled: false, dnsServerIds: [] }
+          : n,
+      ),
+      ...(d.wifiVlan === id ? { wifiVlan: undefined } : {}),
+      allowedVlans: d.allowedVlans?.filter((v) => v !== id),
+      rules: d.rules.filter((r) => r.source !== `vlan:${id}` && r.destination !== `vlan:${id}`),
+      ports: d.ports?.map((p) => {
+        const affected =
+          (p.mode === 'access' && (p.accessVlan || 1) === id) ||
+          (p.mode === 'trunk' && (p.nativeVlan || 1) === id);
+        return {
+          ...p,
+          ...(affected
+            ? {
+                enabled: false,
+                mode: 'auto' as const,
+                accessVlan: undefined,
+                nativeVlan: undefined,
+              }
+            : {}),
+          ...(p.allowedVlans
+            ? {
+                allowedVlans: p.allowedVlans.filter((v) => v !== id),
+                ...(!affected && p.allowedVlans.length === 1 && p.allowedVlans[0] === id
+                  ? { enabled: false }
+                  : {}),
+              }
+            : {}),
+        };
+      }),
+      ...(d.radius
+        ? {
+            radius: {
+              ...d.radius,
+              users: d.radius.users.map((u) =>
+                u.vlan === id ? { ...u, vlan: undefined, enabled: false, authorized: false } : u,
+              ),
+            },
+          }
+        : {}),
+      ...(d.accessSession && (d.accessSession.vlan === id || d.accessSession.baseVlan === id)
+        ? { accessSession: undefined }
+        : {}),
+    })),
+    links: network.links.map((l) => ({
+      ...l,
+      ...(l.accessVlan === id || (l.mode === 'access' && (l.accessVlan || 1) === id)
+        ? { mode: 'auto' as const, accessVlan: undefined }
+        : {}),
+      allowedVlans: l.allowedVlans?.filter((v) => v !== id),
+    })),
+  };
+}

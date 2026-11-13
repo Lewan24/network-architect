@@ -1,3 +1,4 @@
+import { removeVlan } from '../project/vlanEditing';
 import { Modal } from '../components/Modal';
 import { applyVlans } from '../model/network';
 import type { Network } from '../model/networkTypes';
@@ -24,6 +25,7 @@ export function VlanDialog({
       <div className="dialog-body">
         <VlanCards
           network={network}
+          removeUsedVlan={(id) => save(removeVlan(network, id))}
           initialId={initialId}
           change={(vlans) => save(applyVlans(network, vlans))}
         />

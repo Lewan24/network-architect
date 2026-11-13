@@ -133,6 +133,8 @@ export function duplicateNetworkDevice(network: Network, device: Device): Device
 
 /** A virtual-link removal detaches its guest. Removing a host keeps the guest devices. */
 export function removeNetworkObject(network: Network, id: string): Network {
+  if (network.annotations?.some((a) => a.id === id))
+    return { ...network, annotations: network.annotations.filter((a) => a.id !== id) };
   const detachedGuestId = id.startsWith('virtual:') ? id.slice(8) : null;
   const removedSession = network.devices.find((d) => d.id === id)?.accessSession;
   return {

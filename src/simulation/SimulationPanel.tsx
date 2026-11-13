@@ -1,3 +1,4 @@
+import { CustomScenarios } from './CustomScenarios';
 import {
   ArrowClockwise,
   ArrowsLeftRight,
@@ -15,6 +16,7 @@ import { tracePath, validHostname, validIp } from '../model/network';
 import type { Network, Probe } from '../model/networkTypes';
 import type { useSimulation } from './useSimulation';
 type Props = {
+  updateNetwork: (network: Network) => void;
   network: Network;
   probe: Probe;
   setProbe: (probe: Probe) => void;
@@ -22,7 +24,15 @@ type Props = {
   close: () => void;
   editInterfaces: (id: string) => void;
 };
-export function TrafficPanel({ network, probe, setProbe, sim, close, editInterfaces }: Props) {
+export function TrafficPanel({
+  updateNetwork,
+  network,
+  probe,
+  setProbe,
+  sim,
+  close,
+  editInterfaces,
+}: Props) {
   const [mode, setMode] = useState<'device' | 'ip'>(
     network.devices.some((d) => d.id === probe.destination) ? 'device' : 'ip',
   );
@@ -95,6 +105,7 @@ export function TrafficPanel({ network, probe, setProbe, sim, close, editInterfa
         </button>
       </header>
       <div className="sim-panel-scroll">
+        <CustomScenarios network={network} probe={probe} update={updateNetwork} select={setProbe} />
         {scenarios.length > 0 && (
           <label className="demo-scenario-picker field">
             <span>Gotowy scenariusz laboratorium</span>

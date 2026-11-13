@@ -1,3 +1,4 @@
+import { unusedStaticAddress } from '../project/projectActions';
 import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Plus, Trash } from '@phosphor-icons/react';
 import type { Device, DnsRecord, Network } from '../model/network';
@@ -31,7 +32,13 @@ export function DnsEditor({
             patch({
               dnsRecords: [
                 ...records,
-                { id: crypto.randomUUID(), name: 'nowy.lab.home.arpa', address: '192.168.20.20' },
+                {
+                  id: crypto.randomUUID(),
+                  name: device.publicDns ? 'app.example.com' : 'nowy.lab.home.arpa',
+                  address: device.publicDns
+                    ? network.devices.find((d) => d.wanIp)?.wanIp || '203.0.113.10'
+                    : '192.168.20.20',
+                },
               ],
             })
           }
@@ -39,6 +46,34 @@ export function DnsEditor({
           <Plus /> Dodaj rekord A
         </button>
       </div>
+      {device.kind === 'dns' && (
+        <div className="public-dns-settings">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={!!device.publicDns}
+              onChange={(e) =>
+                patch({
+                  publicDns: e.target.checked,
+                  ...(e.target.checked
+                    ? {
+                        ipMode: 'static',
+                        vlan: 0,
+                        interfaces: undefined,
+                        ip: unusedStaticAddress(network, '198.51.100'),
+                      }
+                    : {}),
+                })
+              }
+            />{' '}
+            Publiczny serwer DNS
+          </label>
+          <p className="field-hint">
+            Połącz z Internetem i ustaw publiczny IPv4 w konfiguracji urządzenia. Wybierz ten
+            resolver w VLAN-ie klienta. Rekordy A wskazują publiczny WAN lub adres publikacji NAT.
+          </p>
+        </div>
+      )}
       {records.map((r) => (
         <div className="dns-record-row" key={r.id}>
           <label className="field">
@@ -61,16 +96,27 @@ export function DnsEditor({
                   r.id,
                   e.target.value === '__ip'
                     ? { deviceId: undefined, address: r.address || '' }
-                    : { deviceId: e.target.value, address: undefined },
+                    : device.publicDns
+                      ? {
+                          deviceId: undefined,
+                          address:
+                            network.devices.find((d) => d.id === e.target.value)?.wanIp ||
+                            network.devices.find((d) => d.id === e.target.value)?.ip,
+                        }
+                      : { deviceId: e.target.value, address: undefined },
                 )
               }
             >
               <option value="__ip">Własny adres IPv4</option>
               {network.devices
-                .filter((d) => d.ip || d.ipMode === 'auto')
+                .filter((d) =>
+                  device.publicDns
+                    ? !!d.wanIp || d.kind === 'internet'
+                    : d.ip || d.ipMode === 'auto',
+                )
                 .map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name} · {d.ip || 'oczekuje na DHCP'}
+                    {d.name} · {device.publicDns && d.wanIp ? d.wanIp : d.ip || 'oczekuje na DHCP'}
                   </option>
                 ))}
             </select>
@@ -130,6 +176,7 @@ export function DnsResolvers({
             }
           />
           {d.name}
+          {d.publicDns ? ' · publiczny DNS' : ''}
           <small>{d.ip || 'DHCP'}</small>
         </label>
       ))}

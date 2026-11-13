@@ -1,3 +1,6 @@
+import { TextAnnotationDialog } from '../editors/TextAnnotationDialog';
+import type { CanvasText } from '../model/networkTypes';
+import { NetworkScanDialog } from '../simulation/NetworkScanDialog';
 import { LearningCenter } from '../learning/LearningCenter';
 import { exampleFor, networkExamples } from '../examples/catalog';
 import type { ExampleSection } from '../examples/exampleTypes';
@@ -72,6 +75,8 @@ export function App() {
   const [learning, setLearning] = useState(false);
   const currentExample = exampleFor(net);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [editingText, setEditingText] = useState<CanvasText | null>(null);
+  const [scanSource, setScanSource] = useState<string | null>(null);
   const [context, setContext] = useState<ContextTarget | null>(null);
   const [grid, setGrid] = useState(true);
   const [probe, setProbe] = useState<Probe>(() => ({
@@ -98,6 +103,11 @@ export function App() {
     } else if (!connectionDevice || (connectionPort && !connectionSocket)) cancelConnection();
   }, [connection, connectionPort, connectionDevice, connectionSocket]);
   function openEditor(id: string, section: DeviceTab = 'general') {
+    const text = net.annotations?.find((a) => a.id === id);
+    if (text) {
+      setEditingText({ ...text });
+      return;
+    }
     setEditingTab(section);
     if (id.startsWith('zone:')) setVlansOpen(Number(id.slice(5)));
     else if (id.startsWith('virtual:')) setEditing(id.slice(8));
@@ -177,24 +187,21 @@ export function App() {
       setSelected(null);
       return;
     }
-    if (net.devices.some((d) => d.id === id && d.kind === 'internet')) {
-      notify('Internet jest domyślnym źródłem. Możesz go wyłączyć lub odłączyć od brzegu.');
-      return;
-    }
     commit(removeNetworkObject(net, id));
     setSelected(null);
     if (connection === id) setConnection(null);
   }
+  function addText(point = canvas.current?.center() || { x: 0, y: 0 }) {
+    setEditingText({
+      id: `text:${crypto.randomUUID()}`,
+      text: '',
+      ...point,
+      fontSize: 28,
+      color: '#344054',
+    });
+  }
   function add(kind: Kind, point = canvas.current?.center() || { x: 0, y: 0 }) {
     try {
-      if (kind === 'internet') {
-        const existing = net.devices.find((d) => d.kind === 'internet');
-        if (existing) {
-          setSelected(existing.id);
-          notify('Internet jest już w projekcie. Połącz go z jednym routerem lub firewallem.');
-          return;
-        }
-      }
       const device = createNetworkDevice(net, kind, point);
       commit({ ...net, devices: [...net.devices, device] });
       setSelected(device.id);
@@ -218,10 +225,6 @@ export function App() {
   function duplicate(id: string) {
     const d = net.devices.find((d) => d.id === id);
     if (!d) return;
-    if (d.kind === 'internet') {
-      notify('Projekt ma jeden domyślny obiekt Internet.');
-      return;
-    }
     try {
       const copy = duplicateNetworkDevice(net, d);
       commit({ ...net, devices: [...net.devices, copy] });
@@ -605,9 +608,11 @@ export function App() {
               commit({
                 ...net,
                 devices: net.devices.map((d) => (d.id === id ? { ...d, ...point } : d)),
+                annotations: net.annotations?.map((a) => (a.id === id ? { ...a, ...point } : a)),
               })
             }
             add={add}
+            addText={() => addText()}
             remove={() => remove()}
             connect={connect}
             connection={connection}
@@ -639,6 +644,7 @@ export function App() {
         </main>
         {simulation && (
           <TrafficPanel
+            updateNetwork={commit}
             network={net}
             probe={probe}
             setProbe={setProbe}
@@ -762,9 +768,36 @@ export function App() {
           currentId={currentExample?.id}
         />
       )}
+      {editingText && (
+        <TextAnnotationDialog
+          value={editingText}
+          close={() => setEditingText(null)}
+          save={(value) => {
+            commit({
+              ...net,
+              annotations: [...(net.annotations ?? []).filter((a) => a.id !== value.id), value],
+            });
+            setEditingText(null);
+            setSelected(value.id);
+          }}
+        />
+      )}
+      {scanSource && (
+        <NetworkScanDialog network={net} source={scanSource} close={() => setScanSource(null)} />
+      )}
       {context && (
         <ContextMenu target={context} close={() => setContext(null)}>
-          {context.type === 'device' ? (
+          {context.type === 'text' ? (
+            <>
+              <div className="context-title">Etykieta tekstowa</div>
+              <MenuItem icon={<GearSix />} action={() => openEditor(context.id!)}>
+                Edytuj tekst
+              </MenuItem>
+              <MenuItem danger icon={<Trash />} action={() => remove(context.id)}>
+                Usuń tekst
+              </MenuItem>
+            </>
+          ) : context.type === 'device' ? (
             (() => {
               const d = net.devices.find((d) => d.id === context.id);
               if (!d) return null;
@@ -806,6 +839,11 @@ export function App() {
                       }
                     >
                       {d.online ? 'Wyłącz urządzenie' : 'Włącz urządzenie'}
+                    </MenuItem>
+                  )}
+                  {d.kind !== 'rack' && (
+                    <MenuItem icon={<Play />} action={() => setScanSource(d.id)}>
+                      Test nmap · dostęp do sieci
                     </MenuItem>
                   )}
                   <hr />
@@ -853,6 +891,9 @@ export function App() {
           ) : (
             <>
               <div className="context-title">Plansza</div>
+              <MenuItem icon={<SquaresFour />} action={() => addText(context.world)}>
+                Dodaj tekst
+              </MenuItem>
               <MenuItem icon={<SquaresFour />} action={() => setVlansOpen('all')}>
                 Zarządzaj VLAN-ami
               </MenuItem>

@@ -153,6 +153,28 @@ export function DeviceLibrary({
             </button>
           ))}
           {!net.devices.length && <p>Brak urządzeń.</p>}
+          {!!net.annotations?.length && <h3>Etykiety tekstowe</h3>}
+          {net.annotations?.map((a) => (
+            <button
+              key={a.id}
+              className={selected === a.id ? 'active' : ''}
+              onClick={() => setSelected(a.id)}
+              onDoubleClick={() => setEditing(a.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  setEditing(a.id);
+                }
+              }}
+              title={a.text}
+            >
+              <i style={{ background: a.color }} />
+              <span>
+                {a.text}
+                <small>Tekst · {a.fontSize}px</small>
+              </span>
+            </button>
+          ))}
           <h3>Połączenia</h3>
           {net.links.map((l) => {
             const a = net.devices.find((d) => d.id === l.a);

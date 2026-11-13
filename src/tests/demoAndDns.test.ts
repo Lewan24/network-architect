@@ -60,13 +60,17 @@ describe('default Internet and public edge', () => {
     expect(internetConnection(n).error).toContain('publicznego WAN');
     expect(internetConnection(n).internet?.kind).toBe('internet');
   });
-  it('allows only one physical neighbor and requires a router or firewall', () => {
+  it('allows multiple edge neighbors and rejects private hosts', () => {
     const n = createDemoNetwork();
     const wan = get(n, 'internet-default');
-    expect(() => connectInternet(n, wan.id, 'demo-firewall', 'extra')).toThrow('już');
+    expect(
+      connectInternet(n, wan.id, 'demo-firewall', 'extra').links.some((l) => l.id === 'extra'),
+    ).toBe(true);
     const blank = blankProject();
     blank.devices.push({ ...get(n, 'demo-pc'), id: 'pc' });
-    expect(() => connectInternet(blank, blank.devices[0].id, 'pc', 'bad')).toThrow('a nie');
+    expect(() => connectInternet(blank, blank.devices[0].id, 'pc', 'bad')).toThrow(
+      'Połącz Internet',
+    );
   });
   it('scans the first edge rather than any unrelated WAN object in the inventory', () => {
     const n = createDemoNetwork();
@@ -74,13 +78,13 @@ describe('default Internet and public edge', () => {
     expect(internetTargets(n)).toEqual(['203.0.113.10']);
     for (let i = 0; i < 30; i++) expect(internetProbe(n)?.destination).toBe('203.0.113.10');
   });
-  it('distinguishes offline, disconnected and ambiguous Internet connections', () => {
+  it('supports multiple Internet connections while detecting offline clouds', () => {
     const n = createDemoNetwork();
     get(n, 'internet-default').online = false;
     expect(internetConnection(n).error).toContain('wyłączony');
     get(n, 'internet-default').online = true;
     n.links.push({ id: 'duplicate-wan', a: 'internet-default', b: 'demo-firewall' });
-    expect(internetConnection(n).error).toContain('dokładnie jedno');
+    expect(internetConnection(n).error).toBe('');
   });
 });
 describe('network section translation', () => {

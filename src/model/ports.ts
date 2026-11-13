@@ -89,7 +89,7 @@ export function defaultPorts(d: Device): Port[] {
   return ports;
 }
 export const isSharedPort = (p: Port, device?: Device) =>
-  p.connector === 'wifi' && device?.kind === 'accesspoint';
+  device?.kind === 'internet' || (p.connector === 'wifi' && device?.kind === 'accesspoint');
 export function portFor(network: Network, link: Link, side: 'a' | 'b'): Port | undefined {
   const index = (network as OperationalNetwork)[PORT_INDEX];
   if (index) return index.get(`${link[side]}:${link[`${side}PortId`]}`);

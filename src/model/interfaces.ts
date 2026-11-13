@@ -4,6 +4,7 @@ import type { Device, Network, NetworkInterface, Probe } from './networkTypes';
 
 export function supportsHostInterfaces(d: Device): boolean {
   return (
+    !d.publicDns &&
     [
       'iot',
       'laptop',
@@ -18,7 +19,8 @@ export function supportsHostInterfaces(d: Device): boolean {
       'radius',
       'vm',
       'server',
-    ].includes(d.kind) && d.serverRole !== 'hypervisor'
+    ].includes(d.kind) &&
+    d.serverRole !== 'hypervisor'
   );
 }
 export function supportsInterfaces(d: Device): boolean {
