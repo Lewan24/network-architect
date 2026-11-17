@@ -1,3 +1,4 @@
+import { normalizeMac, validMac } from './mac';
 import { simulateNetwork } from '../simulation/networkEngine';
 import { physicalLinkState, operationalNetwork } from './ports';
 import type { Device, Link, Network, RadiusEvent, RadiusSession } from './networkTypes';
@@ -26,7 +27,7 @@ export function controlledAccess(network: Network, link: Link) {
     const port = nas.ports?.find((p) => p.id === link[`${side}PortId`]);
     if (
       (nas.kind === 'accesspoint' &&
-        nas.wifiEnterprise &&
+        (nas.wifiEnterprise || nas.radiusNas?.mab) &&
         (port?.connector === 'wifi' || link.cable === 'wireless')) ||
       port?.dot1x
     )
@@ -82,7 +83,7 @@ export function projectNetworkAccess(network: Network, now = Date.now()): Networ
     const server = devices.find((s) => s.id === config?.serverId && s.kind === 'radius');
     const session: RadiusSession = {
       state: 'rejected',
-      username: d.supplicant?.username || '',
+      username: config?.mab ? d.mac || '' : d.supplicant?.username || '',
       nasId: nas.id,
       serverId: config?.serverId || '',
       baseVlan: d.vlan,
@@ -122,8 +123,16 @@ export function projectNetworkAccess(network: Network, now = Date.now()): Networ
         session.authPath = response.path;
         if (!response.ok) reject(`RADIUS UDP/1812: ${response.reason}`, true);
         else {
-          const user = server.radius?.users.find((u) => u.username === d.supplicant?.username);
-          if (!d.supplicant || !user || !user.enabled || user.password !== d.supplicant.password)
+          const user = server.radius?.users.find((u) =>
+            config.mab
+              ? !!d.mac && !!u.mac && normalizeMac(u.mac) === normalizeMac(d.mac)
+              : !u.mac && u.username === d.supplicant?.username,
+          );
+          if (
+            !user ||
+            !user.enabled ||
+            (!config.mab && (!d.supplicant || user.password !== d.supplicant.password))
+          )
             reject('Access-Reject: niepoprawne dane logowania lub konto jest wyłączone.');
           else if (
             !user.authorized ||
@@ -135,7 +144,9 @@ export function projectNetworkAccess(network: Network, now = Date.now()): Networ
               config.dynamicVlan && user.vlan !== undefined
                 ? user.vlan
                 : nas.kind === 'accesspoint'
-                  ? (nas.wifiVlan ?? nas.vlan)
+                  ? (nas.wifiNetworks?.find((n) => port?.id === `ssid:${n.id}`)?.vlan ??
+                    nas.wifiVlan ??
+                    nas.vlan)
                   : (port?.accessVlan ?? link.accessVlan ?? d.vlan);
             if (!next.vlans.some((v) => v.id === vlan))
               reject('Access-Reject: polityka wskazuje nieistniejący VLAN.');
@@ -229,6 +240,7 @@ export function validateRadius(d: Device, network?: Network) {
       throw Error('Nieprawidłowa konfiguracja serwera RADIUS.');
     const users = new Set<string>();
     const ids = new Set<string>();
+    const macs = new Set<string>();
     for (const u of d.radius.users) {
       if (
         !u ||
@@ -239,7 +251,8 @@ export function validateRadius(d: Device, network?: Network) {
         !u.username.trim() ||
         users.has(u.username) ||
         !text(u.password, 128) ||
-        !u.password ||
+        (!u.password && !u.mac) ||
+        (u.mac !== undefined && (typeof u.mac !== 'string' || !validMac(u.mac))) ||
         typeof u.enabled !== 'boolean' ||
         typeof u.authorized !== 'boolean' ||
         !text(u.role) ||
@@ -254,6 +267,11 @@ export function validateRadius(d: Device, network?: Network) {
             )))
       )
         throw Error('RADIUS: sprawdź unikalne konta, hasła testowe, autoryzację i VLAN-y.');
+      if (u.mac) {
+        const mac = normalizeMac(u.mac);
+        if (macs.has(mac)) throw Error('RADIUS: MAC może wystąpić w jednej polityce.');
+        macs.add(mac);
+      }
       users.add(u.username);
       ids.add(u.id);
     }
@@ -280,6 +298,7 @@ export function validateRadius(d: Device, network?: Network) {
       !text(n.serverId) ||
       !text(n.secret, 128) ||
       !n.secret ||
+      (n.mab !== undefined && typeof n.mab !== 'boolean') ||
       typeof n.dynamicVlan !== 'boolean' ||
       typeof n.accounting !== 'boolean' ||
       (n.serverId &&

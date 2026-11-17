@@ -1,3 +1,4 @@
+import { wirelessAccessError, wirelessAssociation } from '../model/wifi';
 import {
   activeInterface,
   connectedNextHop,
@@ -62,7 +63,20 @@ export function selectRoute(device: Device, destinationIp: string): StaticRoute 
 type Plan = {
   path: string[];
   error?: string;
+  /** Interior nodes of an explicitly resolved L2 segment must not route or apply routing ACLs. */
+  l2Transit?: number[];
 };
+function layer2Plan(path: string[]): Plan {
+  return { path, l2Transit: path.slice(1, -1).map((_, i) => i + 1) };
+}
+function joinPlans(first: Plan, second: Plan): Plan {
+  const offset = first.path.length - 1;
+  return {
+    path: [...first.path, ...second.path.slice(1)],
+    l2Transit: [...(first.l2Transit || []), ...(second.l2Transit || []).map((i) => i + offset)],
+    error: second.error,
+  };
+}
 function simulatePacket(network: Network, probe: Probe, options: EngineOptions = {}): Result {
   network = operationalNetwork(network);
   const byId = new Map(network.devices.map((d) => [d.id, d]));
@@ -79,6 +93,8 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
   if (source?.kind === 'rack' || byId.get(probe.destination)?.kind === 'rack')
     return fail('Szafa RACK nie jest uczestnikiem komunikacji sieciowej.');
   if (!source) return fail('Wybierz źródło komunikacji.');
+  const wifiError = wirelessAccessError(network, source.id);
+  if (wifiError) return { ...fail(wifiError, [source.id]), verdict: 'blocked' };
   if (source.kind === 'switch-unmanaged')
     return fail('Switch niezarządzalny nie ma interfejsu IP i nie może być źródłem testu.');
   if (
@@ -295,14 +311,15 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
     target?.interfaces?.find((n) => n.enabled && n.ip === targetIp)?.vlan ??
     target?.vlan;
   function findPath(from: string, to: string, destinationIp: string): Plan {
-    const queue: string[][] = [[from]];
+    const queue: Plan[] = [{ path: [from] }];
     const visited = new Set([from]);
     let blocked: Plan | undefined;
     while (queue.length) {
-      const path = queue.shift()!;
+      const current = queue.shift()!;
+      const { path } = current;
       const id = path.at(-1)!;
       const d = byId.get(id)!;
-      if (id === to) return { path };
+      if (id === to) return current;
       if (
         id !== from &&
         [
@@ -344,7 +361,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
             );
         if (connected) {
           const local = layer2Path(network, d.id, to, connected.id, nic?.portId);
-          if (local) return { path: [...path, ...local.slice(1)] };
+          if (local) return joinPlans(current, layer2Plan(local));
           blocked = {
             path,
             error: `ARP/L2: cel w podłączonej sieci VLAN ${connected.id} (${connected.cidr}) jest nieosiągalny.`,
@@ -355,7 +372,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
           for (const nextId of next)
             if (!visited.has(nextId) && byId.get(nextId)?.online) {
               visited.add(nextId);
-              queue.push([...path, nextId]);
+              queue.push({ ...current, path: [...path, nextId] });
             }
           continue;
         }
@@ -377,7 +394,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
             continue;
           }
           visited.add(nextDevice.id);
-          queue.push([...path, ...local.slice(1)]);
+          queue.push(joinPlans(current, layer2Plan(local)));
           continue;
         }
         if (!next.includes(route.nextHopId) || !nextDevice?.online) {
@@ -391,7 +408,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
       for (const id of next)
         if (!visited.has(id) && byId.get(id)?.online) {
           visited.add(id);
-          queue.push([...path, id]);
+          queue.push({ ...current, path: [...path, id] });
         }
     }
     return (
@@ -430,7 +447,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
       if (ip >= p.start && ip <= p.end) {
         const path = layer2Path(network, source!.id, to, scope.id);
         return path
-          ? { path }
+          ? layer2Plan(path)
           : {
               path: [source!.id],
               error: `ARP/L2: cel w VLAN ${scope.id} nie jest dostępny w tej samej domenie rozgłoszeniowej.`,
@@ -466,9 +483,9 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
           path: [source!.id],
           error: `Nieosiągalna brama ${scope.gateway} w VLAN ${scope.id}. Sprawdź access/trunk i połączenia.`,
         };
-      if (to === gateway.id) return { path: first };
+      if (to === gateway.id) return layer2Plan(first);
       const rest = findPath(gateway.id, to, destinationIp);
-      return { path: [...first, ...rest.path.slice(1)], error: rest.error };
+      return joinPlans(layer2Plan(first), rest);
     }
     return findPath(source!.id, to, destinationIp);
   }
@@ -483,7 +500,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
       };
     else {
       const second = findPath(translation.owner.id, target.id, targetIp);
-      plan = { path: [...first.path, ...second.path.slice(1)], error: second.error };
+      plan = joinPlans(first, second);
       if (!second.path.length) plan.error = 'Brak wewnętrznej ścieżki od firewalla do celu NAT.';
     }
   } else plan = sourcePath(target!.id, requestedIp);
@@ -499,8 +516,21 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
     const d = byId.get(plan.path[i])!;
     const prev = byId.get(plan.path[i - 1]);
     const messages: string[] = [];
+    if (i === 0) {
+      const association = network.links
+        .filter((l) => l.a === d.id || l.b === d.id)
+        .map((l) => wirelessAssociation(network, l))
+        .find((a) => a?.client.id === d.id && a.ppsk !== undefined && !a.error);
+      if (association)
+        messages.push(
+          `PPSK: SSID „${association.ssid}”, profil „${association.keyName}”, VLAN ${association.vlan}.`,
+        );
+    }
     const switching =
-      d.kind === 'switch-l3' && i > 0 && i < plan.path.length - 1 && !!vlan && vlan === targetVlan;
+      d.kind === 'switch-l3' &&
+      i > 0 &&
+      i < plan.path.length - 1 &&
+      (!!plan.l2Transit?.includes(i) || (!!vlan && vlan === targetVlan));
     const routingHop = isRoutingDevice(d) && !switching;
     if (routingHop) {
       routedIndices.add(i);
@@ -635,7 +665,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
           matchesAclAddress(r.source, sourceIp, network) &&
           matchesAclAddress(r.destination, destinationIp, network),
       );
-      const action = rule?.action || d.defaultAcl || 'deny';
+      const action = rule?.action || d.defaultAcl || (d.kind === 'vm' ? 'allow' : 'deny');
       if (action === 'deny')
         return stop(
           `${rule ? `Reguła ACL ${d.rules.indexOf(rule) + 1} (${rule.id})` : 'Domyślna ACL deny any'} blokuje ${probe.protocol}${probe.protocol === 'ICMP' ? '' : ' / ' + port}.`,
@@ -706,7 +736,12 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
     if (d.kind === 'accesspoint') messages.push(`Most Wi-Fi${d.ssid ? ' „' + d.ssid + '”' : ''}.`);
     if (d.kind === 'switch-unmanaged')
       messages.push('Switch L2 niezarządzalny: jedna sieć dostępu.');
-    if (d.kind === 'switch-l3') messages.push('Routing między VLAN-ami na switchu L3.');
+    if (d.kind === 'switch-l3')
+      messages.push(
+        switching
+          ? 'Przełączanie L2 przez switch L3; routing realizuje brama.'
+          : 'Routing między VLAN-ami na switchu L3.',
+      );
     messages.push(
       i === 0
         ? `Wysłano ${probe.protocol}.`
@@ -729,7 +764,7 @@ function simulatePacket(network: Network, probe: Probe, options: EngineOptions =
     const stateful = new Set(
       plan.path.filter((id) => {
         const d = byId.get(id)!;
-        return hasWan(d) || ['gateway', 'firewall'].includes(d.kind);
+        return hasWan(d) || ['gateway', 'firewall', 'vm'].includes(d.kind);
       }),
     );
     const outboundOwner = plan.path

@@ -11,7 +11,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test:ui": "node scripts/check-ui.mjs",
-    "docs:guide": "node scripts/export-guide.mjs"
+    "docs:guide": "node scripts/export-guide.mjs",
+    "test:ppsk-ui": "node scripts/check-ppsk.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.7",

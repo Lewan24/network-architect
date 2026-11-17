@@ -55,7 +55,7 @@ export function primaryInterface(d: Device, network: Network): NetworkInterface 
     ip: d.ip,
     ipMode: d.ipMode,
     prefix: scope ? routeSubnet(scope.cidr).prefix : 24,
-    gateway: scope?.gatewayDeviceId ? scope.gateway : '',
+    gateway: scope?.gatewayDeviceId && scope.gatewayDeviceId !== d.id ? scope.gateway : '',
     metric: 100,
     dnsServerIds: d.dnsServerIds,
     lease: d.lease,

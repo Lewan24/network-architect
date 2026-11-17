@@ -1,3 +1,5 @@
+import { wirelessAccessError } from './wifi';
+import { projectWirelessMembership } from './accessMembership';
 import { projectNetworkAccess } from './radius';
 import {
   connectedNextHop,
@@ -178,6 +180,8 @@ export type DhcpStatus = {
 export function discoverDhcp(network: Network, client: Device): DhcpStatus {
   network = operationalNetwork(network);
   client = network.devices.find((d) => d.id === client.id) || client;
+  const wifiError = wirelessAccessError(network, client.id);
+  if (wifiError) return { state: 'waiting', message: wifiError, path: [] };
   if (client.ipMode !== 'auto')
     return { state: 'static', message: 'Statyczny adres IPv4.', path: [] };
   if (!client.online) return { state: 'offline', message: 'Urządzenie jest wyłączone.', path: [] };
@@ -348,9 +352,9 @@ export function dhcpStatus(network: Network, client: Device, now = Date.now()): 
 }
 
 export function reconcileDhcp(network: Network, now = Date.now(), renewId?: string): Network {
-  network = materializeHardware(network);
+  network = projectWirelessMembership(materializeHardware(network));
   if (network.devices.some((d) => d.radiusNas)) network = reconcileClientNetwork(network, now);
-  network = projectNetworkAccess(network, now);
+  network = projectWirelessMembership(projectNetworkAccess(network, now));
   const expanded = expandInterfaceClients(network);
   const renewed = reconcileClientNetwork(
     expanded.network,

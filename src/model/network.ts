@@ -1,3 +1,5 @@
+import { ppskVlans, validateWifiPpsk } from './wifi';
+import { validMac } from './mac';
 import { validateRadius, validateRadiusEvents } from './radius';
 import { validateRack } from './racks';
 import { connectedNextHop } from './interfaces';
@@ -34,14 +36,18 @@ export function bridgesVlan(d: Device, vlan: number): boolean {
     return !d.allowedVlans?.length || d.allowedVlans.includes(vlan);
   if (d.kind === 'accesspoint')
     return (
-      !!(d.wifiEnterprise && d.radiusNas?.dynamicVlan) || !vlan || (d.wifiVlan ?? d.vlan) === vlan
+      !!(d.radiusNas?.dynamicVlan && (d.wifiEnterprise || d.radiusNas.mab)) ||
+      !vlan ||
+      (d.wifiVlan ?? d.vlan) === vlan ||
+      !!d.wifiNetworks?.some((n) => n.vlan === vlan) ||
+      ppskVlans(d).includes(vlan)
     );
   if (d.kind === 'switch-unmanaged') return !d.vlan || d.vlan === vlan;
   return false;
 }
 
 export function hasAcl(d: Device) {
-  return isRoutingDevice(d);
+  return isRoutingDevice(d) || d.kind === 'vm';
 }
 export function hasWan(d: Device) {
   return (
@@ -320,6 +326,30 @@ export function validateDeviceConfig(d: Device, network?: Network, strictNeighbo
       (network && !network.vlans.some((v) => v.id === d.wifiVlan)))
   )
     throw Error('Wybierz istniejący VLAN dla klientów SSID.');
+  if (d.mac !== undefined && (typeof d.mac !== 'string' || !validMac(d.mac)))
+    throw Error('Podaj MAC unicast w formacie 02:ab:cd:ef:01:23.');
+  if (
+    d.wifiNetworks !== undefined &&
+    (d.kind !== 'accesspoint' ||
+      !Array.isArray(d.wifiNetworks) ||
+      d.wifiNetworks.length > 16 ||
+      new Set(d.wifiNetworks.map((n) => n?.id)).size !== d.wifiNetworks.length ||
+      d.wifiNetworks.some(
+        (n) =>
+          !n ||
+          typeof n.id !== 'string' ||
+          !n.id ||
+          typeof n.ssid !== 'string' ||
+          !n.ssid.trim() ||
+          n.ssid.length > 32 ||
+          !Number.isInteger(n.vlan) ||
+          n.vlan < 1 ||
+          n.vlan > 4094 ||
+          (network && !network.vlans.some((v) => v.id === n.vlan)),
+      ))
+  )
+    throw Error('Sprawdź unikalne sieci SSID i ich VLAN-y (maksymalnie 16).');
+  validateWifiPpsk(d, network);
   if (d.ssid !== undefined && (typeof d.ssid !== 'string' || d.ssid.length > 32))
     throw Error('SSID może mieć maksymalnie 32 znaki.');
   if (d.hostId !== undefined && typeof d.hostId !== 'string') throw Error('Nieprawidłowy host VM.');

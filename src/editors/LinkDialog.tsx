@@ -187,23 +187,25 @@ export function LinkDialog({
             {draft.mode === 'trunk' && (
               <fieldset className="vlan-checks">
                 <legend>VLAN-y zgodności — pusta lista: wszystkie</legend>
-                {network.vlans.map((v) => (
-                  <label key={v.id} className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={!!draft.allowedVlans?.includes(v.id)}
-                      onChange={(e) =>
-                        setDraft({
-                          ...draft,
-                          allowedVlans: e.target.checked
-                            ? [...(draft.allowedVlans || []), v.id]
-                            : draft.allowedVlans?.filter((id) => id !== v.id),
-                        })
-                      }
-                    />
-                    VLAN {v.id}
-                  </label>
-                ))}
+                {[...network.vlans]
+                  .sort((a, b) => a.id - b.id)
+                  .map((v) => (
+                    <label key={v.id} className="checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={!!draft.allowedVlans?.includes(v.id)}
+                        onChange={(e) =>
+                          setDraft({
+                            ...draft,
+                            allowedVlans: e.target.checked
+                              ? [...(draft.allowedVlans || []), v.id]
+                              : draft.allowedVlans?.filter((id) => id !== v.id),
+                          })
+                        }
+                      />
+                      VLAN {v.id}
+                    </label>
+                  ))}
               </fieldset>
             )}
           </details>

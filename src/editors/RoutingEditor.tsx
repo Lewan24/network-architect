@@ -1,3 +1,4 @@
+import { DeviceOptions } from '../components/DeviceOptions';
 import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Info, Plus, Trash } from '@phosphor-icons/react';
 import { isRoutingDevice } from '../model/network';
@@ -89,11 +90,7 @@ export function RoutingEditor({
                 onChange={(e) => update(r.id, { nextHopId: e.target.value })}
               >
                 <option value="">Wybierz router następnego skoku</option>
-                {neighbors.map((n) => (
-                  <option key={n.id} value={n.id}>
-                    {n.name} · {n.ip}
-                  </option>
-                ))}
+                <DeviceOptions network={network} devices={neighbors} />
               </select>
             </label>
             <label className="field">

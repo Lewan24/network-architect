@@ -1,11 +1,11 @@
 :root {
   font-family: 'Segoe UI', sans-serif;
   color: #344054;
-  background: #fafbfd;
+  background: #e4e8ef;
   font-size: 12px;
   font-synthesis: none;
   --accent: #5c6acb;
-  --border: #e6eaf0;
+  --border: #c7cfdb;
   --muted: #727e90;
 }
 * {
@@ -55,7 +55,7 @@ input,
 select {
   width: 100%;
   min-width: 0;
-  background: white;
+  background: #edf0f5;
   color: #344054;
   border: 1px solid #dce2eb;
   border-radius: 5px;
@@ -172,7 +172,7 @@ h3 {
   gap: 14px;
   padding: 0 16px;
   border-bottom: 1px solid var(--border);
-  background: white;
+  background: #edf0f5;
   flex-shrink: 0;
   z-index: 3;
 }
@@ -269,7 +269,7 @@ h3 {
   width: 178px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
-  background: white;
+  background: #edf0f5;
   display: flex;
   flex-direction: column;
   overflow: auto;
@@ -575,7 +575,7 @@ h3 {
   min-height: 100px;
   position: relative;
   overflow: hidden;
-  background: #fafbfd;
+  background: #e4e8ef;
 }
 .network-canvas {
   width: 100%;
@@ -636,7 +636,7 @@ h3 {
   top: 17px;
   display: flex;
   flex-direction: column;
-  background: white;
+  background: #edf0f5;
   border: 1px solid var(--border);
   padding: 4px;
   gap: 3px;
@@ -675,7 +675,7 @@ h3 {
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  background: white;
+  background: #edf0f5;
   border: 1px solid var(--border);
   padding: 4px 5px 4px 11px;
   border-radius: 7px;
@@ -719,7 +719,7 @@ kbd {
   padding: 1px 4px;
   border: 1px solid #dfe4ed;
   border-radius: 3px;
-  background: #fafbfd;
+  background: #e4e8ef;
   font-family: inherit;
   font-size: 8px;
   color: #8490a3;
@@ -728,7 +728,7 @@ kbd {
   display: flex;
   align-items: center;
   gap: 3px;
-  background: white;
+  background: #edf0f5;
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 3px;
@@ -783,7 +783,7 @@ kbd {
   justify-content: space-between;
   padding: 0 14px;
   border-top: 1px solid var(--border);
-  background: white;
+  background: #edf0f5;
   color: #8490a2;
   font-size: 8px;
   gap: 15px;
@@ -1420,7 +1420,7 @@ kbd {
   width: 231px;
   max-height: calc(100dvh - 16px);
   overflow: auto;
-  background: white;
+  background: #edf0f5;
   border: 1px solid #e3e7ef;
   border-radius: 8px;
   padding: 5px;
@@ -2556,7 +2556,7 @@ kbd {
   right: 0;
   width: min(310px, calc(100vw - 24px));
   padding: 7px;
-  background: white;
+  background: #edf0f5;
   border: 1px solid var(--border);
   border-radius: 7px;
   box-shadow: 0 8px 24px #2938541a;
@@ -3148,7 +3148,7 @@ kbd {
   padding: 4px 7px;
   font-size: 10px;
   color: #5868b5;
-  background: white;
+  background: #edf0f5;
   flex-shrink: 0;
 }
 @media (max-width: 680px) {
@@ -3287,7 +3287,7 @@ kbd {
   border: 1px solid #dce4ee;
   border-left: 4px solid var(--section-color);
   border-radius: 8px;
-  background: white;
+  background: #edf0f5;
   margin-bottom: 18px;
   min-width: 0;
 }
@@ -3384,54 +3384,194 @@ kbd {
   background: #fffdf9;
   padding: 16px;
 }
-.acl-rule-list {
-  display: grid;
-  gap: 14px;
+.acl-editor {
+  min-width: 0;
 }
-.acl-rule-card {
-  border: 1px solid #e0e6ef;
-  border-left: 4px solid #78a48c;
-  border-radius: 8px;
-  background: white;
-  overflow: hidden;
+.acl-heading {
+  margin-bottom: 10px;
 }
-.acl-rule-card.deny {
-  border-left-color: #bb877b;
-}
-.acl-rule-card > header {
+.acl-heading h3 {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 11px 15px;
-  background: #f7f9fc;
-  border-bottom: 1px solid #e7edf4;
+  gap: 8px;
 }
-.acl-rule-card > header strong {
-  font-size: 13px;
-  color: #405874;
-  display: block;
-}
-.acl-rule-card > header small {
-  display: block;
+.acl-count {
   font-size: 10px;
-  color: #708198;
-  margin-top: 3px;
-  overflow-wrap: anywhere;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: #dce3ef;
+  color: #526783;
 }
-.acl-card-fields {
+.acl-editor .acl-default {
+  padding: 8px 11px;
+  gap: 12px;
+  margin-bottom: 6px;
+  border: 1px solid #c9d2e0;
+}
+.acl-editor .acl-default small {
+  margin-top: 0;
+  font-size: 10px;
+}
+.acl-editor .acl-default strong {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.acl-rule-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 15px;
-  gap: 10px 14px;
+  gap: 0;
 }
-.acl-card-fields .field {
+.acl-rule-card {
+  border: 1px solid #c7d2e0;
+  border-left: 3px solid #6c9b83;
+  border-radius: 7px;
+  background: #f3f6fa;
+  padding: 9px 11px;
+  min-width: 0;
+}
+.acl-rule-card.deny {
+  border-left-color: #ba796f;
+}
+.acl-rule-controls {
+  display: grid;
+  grid-template-columns: 25px minmax(100px, 1fr) 78px 75px minmax(100px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.acl-order {
+  align-self: end;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #708198;
+}
+.acl-rule-card .field {
   margin-bottom: 0;
   min-width: 0;
+  gap: 3px;
 }
-.acl-card-fields select {
+.acl-rule-card .field > span {
+  font-size: 10px;
+  margin-bottom: 0;
+  color: #687b94;
+  line-height: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.acl-rule-card input,
+.acl-rule-card select {
   width: 100%;
   min-width: 0;
+  height: 30px;
+  padding: 5px 7px;
+  font-size: 11px;
+}
+.acl-rule-card .field-help {
+  width: 15px;
+  height: 15px;
+}
+.acl-rule-card .rule-actions {
+  height: 30px;
+  gap: 2px;
+  align-items: center;
+}
+.acl-rule-card .rule-actions button {
+  width: 27px;
+  height: 28px;
+  padding: 5px;
+}
+.acl-rule-endpoints {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 7px;
+  align-items: end;
+}
+.acl-flow-arrow {
+  width: 16px;
+  height: 30px;
+  color: #8a99ac;
+}
+.acl-rule-card .acl-address-picker input {
+  margin-top: 5px;
+}
+.acl-insert {
+  display: flex;
+  width: 100%;
+  gap: 6px;
+  height: 25px;
+  padding: 2px 0;
+  color: #7789a2;
+  border-radius: 0;
+  font-size: 10px;
+}
+.acl-insert::before,
+.acl-insert::after {
+  content: '';
+  height: 1px;
+  background: #cbd5e3;
+  flex: 1;
+}
+.acl-insert svg {
+  width: 12px;
+  height: 12px;
+}
+.acl-insert:hover,
+.acl-insert:focus-visible {
+  color: #4f60b2;
+  background: #e2e8f4;
+}
+.acl-footnote {
+  font-size: 10px;
+  margin-top: 10px;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .acl-rule-controls {
+    grid-template-columns: 22px minmax(0, 1fr) 66px 62px;
+    gap: 6px;
+  }
+  .acl-action {
+    grid-column: 2;
+  }
+  .acl-protocol {
+    grid-column: 3;
+  }
+  .acl-port {
+    grid-column: 4;
+  }
+  .acl-ingress {
+    grid-column: 2;
+  }
+  .acl-rule-card .rule-actions {
+    grid-column: 3 / 5;
+    justify-self: end;
+  }
+  .acl-rule-card .rule-actions button {
+    width: 23px;
+  }
+  .acl-rule-endpoints {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .acl-flow-arrow {
+    display: none;
+  }
+  .acl-rule-card {
+    padding: 8px;
+  }
+  .acl-editor .acl-default {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+  }
+  .acl-editor .acl-default > select {
+    width: 100%;
+  }
 }
 .field-help {
   display: inline-flex;
@@ -3540,7 +3680,7 @@ kbd {
 .project-learning-banner button {
   font-size: 11px;
   padding: 7px 10px;
-  background: white;
+  background: #edf0f5;
   flex-shrink: 0;
   color: #546b99;
 }
@@ -3856,9 +3996,6 @@ kbd {
     justify-self: start;
   }
 
-  .acl-card-fields {
-    grid-template-columns: 1fr;
-  }
   .learning-projects,
   .lesson-layout {
     grid-template-columns: 1fr;
@@ -4079,7 +4216,7 @@ kbd {
 }
 .custom-scenario-card {
   padding: 13px;
-  background: white;
+  background: #edf0f5;
   border: 1px solid var(--border);
   border-radius: 8px;
   margin-top: 10px;
@@ -4171,7 +4308,7 @@ kbd {
   border-radius: 8px;
   margin-bottom: 12px;
   overflow: hidden;
-  background: white;
+  background: #edf0f5;
 }
 .service-card .service-row {
   display: grid;
@@ -4271,4 +4408,41 @@ kbd {
 }
 .vlan-removal-info p {
   margin-bottom: 0;
+}
+
+/* Distinct surfaces keep long configuration forms readable. */
+.settings-section {
+  border: 1px solid #bbc7d8;
+  border-left: 4px solid var(--section-color);
+  background: #f0f3f8;
+  box-shadow: 0 2px 5px #24334d0d;
+}
+.settings-section > header {
+  border-bottom: 1px solid #c4cede;
+  padding-bottom: 10px;
+}
+input,
+select {
+  background: #f8faff;
+  border-color: #b8c4d5;
+}
+.advanced-toggle {
+  padding: 5px 10px;
+  border: 1px solid #bcc6d7;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.dialog {
+  background: #e4e9f1;
+  border: 1px solid #a8b5c9;
+  box-shadow: 0 24px 80px #17253d55;
+}
+.dialog::backdrop {
+  background: #17253d77;
+}
+
+.ppsk-editor {
+  min-width: 0;
+  grid-column: 1 / -1;
 }

@@ -1,3 +1,11 @@
+import { wirelessAssociation } from '../model/wifi';
+import { projectWirelessMembership } from '../model/accessMembership';
+import { PpskEditor } from './PpskEditor';
+import { WifiClientEditor } from './WifiClientEditor';
+import { DeviceOptions } from '../components/DeviceOptions';
+import { useAdvancedMode } from '../app/advancedMode';
+import { randomMac } from '../model/mac';
+import { defaultPorts } from '../model/ports';
 import { RadiusEditor } from './RadiusEditor';
 import { isRadiusNas, isSupplicant } from '../model/radius';
 import { SettingsSection } from '../components/SettingsSection';
@@ -63,6 +71,7 @@ export function DeviceDialog({
   addGuest,
   initialTab = 'general',
 }: Props) {
+  const advanced = useAdvancedMode();
   const [draft, setDraft] = useState(() => structuredClone(device));
   const [tab, setTab] = useState<DeviceTab>(initialTab);
   const [error, setError] = useState('');
@@ -109,6 +118,14 @@ export function DeviceDialog({
     });
     setError('');
   }
+  const primaryPpsk = configNetwork.links
+    .map((l) => wirelessAssociation(configNetwork, l))
+    .find(
+      (a) =>
+        a?.client.id === draft.id &&
+        a.ppsk !== undefined &&
+        (!draft.interfaces?.length || a.clientPort?.id === draft.interfaces[0].portId),
+    );
   const autoIp = preview.ip;
   const allocationError = '';
   function submit(e: FormEvent) {
@@ -116,12 +133,15 @@ export function DeviceDialog({
     try {
       if (!draft.name.trim()) throw Error('Podaj nazwę urządzenia.');
       if (allocationError) throw Error(allocationError);
+      const configured = projectWirelessMembership(configNetwork).devices.find(
+        (d) => d.id === draft.id,
+      )!;
       const ip = unmanaged ? '' : draft.ipMode === 'auto' ? autoIp : draft.ip.trim();
       if (!unmanaged && draft.ipMode === 'static' && !validIp(ip))
         throw Error('Podaj poprawny adres IPv4.');
-      const vlan = draftVlans.find((v) => v.id === draft.vlan);
-      if (draft.vlan && !vlan) throw Error('Wybierz istniejący VLAN.');
-      if (!unmanaged && !draft.interfaces && ip && vlan && !hostInVlan(ip, vlan))
+      const vlan = draftVlans.find((v) => v.id === configured.vlan);
+      if (configured.vlan && !vlan) throw Error('Wybierz istniejący VLAN.');
+      if (!unmanaged && !configured.interfaces && ip && vlan && !hostInVlan(ip, vlan))
         throw Error(`Adres ${ip} nie należy do podsieci ${vlan.cidr}.`);
       if (ip && network.devices.some((d) => d.id !== draft.id && d.ip === ip))
         throw Error(`Adres ${ip} jest już zajęty.`);
@@ -132,7 +152,19 @@ export function DeviceDialog({
           throw Error(`ACL ${i + 1}: podaj poprawny IP lub *.`);
       }
       const next = {
-        ...draft,
+        ...configured,
+        interfaces: configured.interfaces?.map((n) => {
+          const resolved = preview.interfaces?.find((x) => x.id === n.id);
+          return n.ipMode === 'auto' && resolved
+            ? {
+                ...n,
+                ip: resolved.ip,
+                lease: resolved.lease,
+                gateway: resolved.gateway,
+                prefix: resolved.prefix,
+              }
+            : n;
+        }),
         name: draft.name.trim(),
         ip,
         ipMode: unmanaged ? ('static' as const) : draft.ipMode,
@@ -183,16 +215,23 @@ export function DeviceDialog({
       <form onSubmit={submit}>
         {tabs.length > 1 && (
           <nav className="dialog-tabs config-tabs" aria-label="Sekcje konfiguracji">
-            {tabs.map((t) => (
-              <button
-                type="button"
-                className={tab === t.id ? 'active' : ''}
-                key={t.id}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
+            {tabs
+              .filter(
+                (t) =>
+                  advanced ||
+                  t.id === tab ||
+                  !['interfaces', 'routing', 'nat', 'services', 'dns'].includes(t.id),
+              )
+              .map((t) => (
+                <button
+                  type="button"
+                  className={tab === t.id ? 'active' : ''}
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
           </nav>
         )}
         <div className="dialog-body">
@@ -217,10 +256,11 @@ export function DeviceDialog({
                 <button type="button" className="secondary" onClick={() => setTab('ports')}>
                   <strong>Porty i PoE</strong>
                   <span>
-                    {draft.ports?.length || 0} portów · VLAN, prędkość, moduły i zasilanie
+                    {draft.ports?.length || 0} portów ·{' '}
+                    {advanced ? 'VLAN, prędkość, moduły i zasilanie' : 'VLAN i zasilanie'}
                   </span>
                 </button>
-                {supportsInterfaces(draft) && (
+                {advanced && supportsInterfaces(draft) && (
                   <button type="button" className="secondary" onClick={() => setTab('interfaces')}>
                     <strong>Interfejsy IP</strong>
                     <span>{draft.interfaces?.length || 1} kart · adresy, DHCP, maski i bramy</span>
@@ -362,11 +402,11 @@ export function DeviceDialog({
                           onChange={(e) => patch({ hostId: e.target.value })}
                         >
                           <option value="">Bez hosta — VM nie ma połączenia</option>
-                          {network.devices.filter(isHypervisor).map((d) => (
-                            <option value={d.id} key={d.id}>
-                              {d.name} · {d.hypervisorVendor || 'VMware ESXi'}
-                            </option>
-                          ))}
+                          <DeviceOptions
+                            network={configNetwork}
+                            devices={network.devices.filter(isHypervisor)}
+                            labelFor={(d) => `${d.name} · ${d.hypervisorVendor || 'VMware ESXi'}`}
+                          />
                         </select>
                         <small className="field-hint">
                           Połączenie vNIC z hostem powstaje automatycznie. Host musi być aktywny,
@@ -405,10 +445,15 @@ export function DeviceDialog({
                   >
                     <label className="field">
                       <span>
-                        {unmanaged ? 'Sieć dostępu (bez tagowania)' : 'Sieć / VLAN zarządzania'}
+                        {primaryPpsk
+                          ? 'Sieć / VLAN z hasła PPSK'
+                          : unmanaged
+                            ? 'Sieć dostępu (bez tagowania)'
+                            : 'Sieć / VLAN zarządzania'}
                       </span>
                       <select
-                        value={draft.vlan}
+                        value={primaryPpsk ? preview.vlan : draft.vlan}
+                        disabled={!!primaryPpsk}
                         onChange={(e) =>
                           patch({
                             vlan: +e.target.value,
@@ -417,11 +462,13 @@ export function DeviceDialog({
                         }
                       >
                         <option value={0}>Bez VLAN-u · WAN / routing</option>
-                        {network.vlans.map((v) => (
-                          <option key={v.id} value={v.id}>
-                            {v.name} · VLAN {v.id} · {v.cidr}
-                          </option>
-                        ))}
+                        {[...network.vlans]
+                          .sort((a, b) => a.id - b.id)
+                          .map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.name} · VLAN {v.id} · {v.cidr}
+                            </option>
+                          ))}
                       </select>
                     </label>
                     {!unmanaged ? (
@@ -489,10 +536,34 @@ export function DeviceDialog({
                         )}
                       </>
                     )}
+                    {draft.kind !== 'rack' && (
+                      <label className="field">
+                        <span>Adres MAC urządzenia</span>
+                        <input
+                          value={draft.mac || ''}
+                          placeholder="02:ab:cd:ef:01:23"
+                          onChange={(e) => patch({ mac: e.target.value || undefined })}
+                        />
+                        <button type="button" onClick={() => patch({ mac: randomMac() })}>
+                          Wylosuj MAC
+                        </button>
+                        <small className="field-hint">
+                          Stały w projekcie. Zmiana MAC zmienia tożsamość MAB.
+                        </small>
+                      </label>
+                    )}
+                    <WifiClientEditor device={draft} network={configNetwork} patch={patch} />
+                    {draft.kind === 'vm' && (
+                      <p className="info-line">
+                        VM korzysta z mostu wirtualnego hosta i własnego VLAN-u. Izolację
+                        pojedynczej VM ustaw w ACL tej maszyny; ruch w tym samym VLAN-ie omija
+                        router.
+                      </p>
+                    )}
                     {draft.kind === 'accesspoint' && (
                       <>
                         <label className="field">
-                          <span>SSID sieci Wi-Fi</span>
+                          <span>Podstawowy SSID sieci Wi-Fi</span>
                           <input
                             maxLength={32}
                             value={draft.ssid || ''}
@@ -509,17 +580,139 @@ export function DeviceDialog({
                             }
                           >
                             <option value="">Taki sam jak VLAN zarządzania</option>
-                            {draftVlans.map((v) => (
-                              <option key={v.id} value={v.id}>
-                                {v.name} · VLAN {v.id}
-                              </option>
-                            ))}
+                            {[...draftVlans]
+                              .sort((a, b) => a.id - b.id)
+                              .map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.name} · VLAN {v.id}
+                                </option>
+                              ))}
                           </select>
                           <small className="field-hint">
-                            AP mostkuje klientów do tej sieci bez NAT. Przy innym VLAN-ie
-                            zarządzania uplink musi przenosić oba VLAN-y.
+                            Bez PPSK AP mostkuje klientów do tej sieci. Przy włączonym PPSK VLAN
+                            określa hasło klienta. Uplink musi przenosić VLAN zarządzania i VLAN-y
+                            klientów.
                           </small>
                         </label>
+                        <PpskEditor
+                          keys={draft.wifiPpsk}
+                          ssid={draft.ssid || 'Podstawowy SSID'}
+                          network={configNetwork}
+                          aaaActive={!!(draft.wifiEnterprise || draft.radiusNas?.mab)}
+                          change={(wifiPpsk) => patch({ wifiPpsk })}
+                        />
+                        <fieldset className="vlan-checks">
+                          <legend>Dodatkowe sieci SSID → VLAN</legend>
+                          <p>
+                            Każdy SSID jest osobnym portem Wi-Fi. Podłącz klienta do portu z nazwą
+                            tej sieci. Uplink AP musi przenosić VLAN zarządzania i VLAN-y klientów.
+                          </p>
+                          {(draft.wifiNetworks || []).map((n) => (
+                            <div className="scope-grid" key={n.id}>
+                              <label className="field">
+                                <span>SSID</span>
+                                <input
+                                  maxLength={32}
+                                  value={n.ssid}
+                                  onChange={(e) =>
+                                    patch({
+                                      wifiNetworks: draft.wifiNetworks!.map((x) =>
+                                        x.id === n.id ? { ...x, ssid: e.target.value } : x,
+                                      ),
+                                      ports: draft.ports?.map((p) =>
+                                        p.id === `ssid:${n.id}`
+                                          ? { ...p, name: e.target.value }
+                                          : p,
+                                      ),
+                                    })
+                                  }
+                                />
+                              </label>
+                              <label className="field">
+                                <span>VLAN klientów</span>
+                                <select
+                                  value={n.vlan}
+                                  onChange={(e) =>
+                                    patch({
+                                      wifiNetworks: draft.wifiNetworks!.map((x) =>
+                                        x.id === n.id ? { ...x, vlan: +e.target.value } : x,
+                                      ),
+                                      ports: draft.ports?.map((p) =>
+                                        p.id === `ssid:${n.id}`
+                                          ? { ...p, accessVlan: +e.target.value }
+                                          : p,
+                                      ),
+                                    })
+                                  }
+                                >
+                                  {[...draftVlans]
+                                    .sort((a, b) => a.id - b.id)
+                                    .map((v) => (
+                                      <option key={v.id} value={v.id}>
+                                        {v.name} · {v.id}
+                                      </option>
+                                    ))}
+                                </select>
+                              </label>
+                              <PpskEditor
+                                keys={n.ppsk}
+                                ssid={n.ssid}
+                                network={configNetwork}
+                                aaaActive={!!(draft.wifiEnterprise || draft.radiusNas?.mab)}
+                                change={(ppsk) =>
+                                  patch({
+                                    wifiNetworks: draft.wifiNetworks!.map((x) =>
+                                      x.id === n.id ? { ...x, ppsk } : x,
+                                    ),
+                                  })
+                                }
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (
+                                    network.links.some(
+                                      (l) =>
+                                        (l.a === draft.id && l.aPortId === `ssid:${n.id}`) ||
+                                        (l.b === draft.id && l.bPortId === `ssid:${n.id}`),
+                                    )
+                                  ) {
+                                    setError('Najpierw odłącz klientów tej sieci SSID.');
+                                    return;
+                                  }
+                                  patch({
+                                    wifiNetworks: draft.wifiNetworks!.filter((x) => x.id !== n.id),
+                                    ports: draft.ports?.filter((p) => p.id !== `ssid:${n.id}`),
+                                  });
+                                }}
+                              >
+                                Usuń SSID
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            disabled={!draftVlans.length || (draft.wifiNetworks?.length || 0) >= 16}
+                            onClick={() => {
+                              const n = {
+                                id: crypto.randomUUID(),
+                                ssid: `Wi-Fi ${(draft.wifiNetworks?.length || 0) + 2}`,
+                                vlan: draftVlans[0].id,
+                              };
+                              patch({
+                                wifiNetworks: [...(draft.wifiNetworks || []), n],
+                                ports: [
+                                  ...(draft.ports || defaultPorts(draft)),
+                                  ...defaultPorts({ ...draft, wifiNetworks: [n] }).filter(
+                                    (p) => p.id === `ssid:${n.id}`,
+                                  ),
+                                ],
+                              });
+                            }}
+                          >
+                            Dodaj sieć Wi-Fi
+                          </button>
+                        </fieldset>
                       </>
                     )}
                     {(draft.kind === 'switch' || draft.kind === 'switch-l3') && (
@@ -529,22 +722,24 @@ export function DeviceDialog({
                             ? 'VLAN-y przenoszone przez switch L2'
                             : 'Obsługiwane VLAN-y'}
                         </legend>
-                        {network.vlans.map((v) => (
-                          <label className="checkbox-label" key={v.id}>
-                            <input
-                              type="checkbox"
-                              checked={(draft.allowedVlans || []).includes(v.id)}
-                              onChange={(e) =>
-                                patch({
-                                  allowedVlans: e.target.checked
-                                    ? [...(draft.allowedVlans || []), v.id]
-                                    : (draft.allowedVlans || []).filter((id) => id !== v.id),
-                                })
-                              }
-                            />
-                            {v.name} <small>VLAN {v.id}</small>
-                          </label>
-                        ))}
+                        {[...network.vlans]
+                          .sort((a, b) => a.id - b.id)
+                          .map((v) => (
+                            <label className="checkbox-label" key={v.id}>
+                              <input
+                                type="checkbox"
+                                checked={(draft.allowedVlans || []).includes(v.id)}
+                                onChange={(e) =>
+                                  patch({
+                                    allowedVlans: e.target.checked
+                                      ? [...(draft.allowedVlans || []), v.id]
+                                      : (draft.allowedVlans || []).filter((id) => id !== v.id),
+                                  })
+                                }
+                              />
+                              {v.name} <small>VLAN {v.id}</small>
+                            </label>
+                          ))}
                         <p className="field-hint">
                           {draft.kind === 'switch'
                             ? 'Pusta lista: wszystkie VLAN-y projektu, zgodnie z portami access/trunk. VLAN zarządzania dotyczy tylko adresu IP switcha.'

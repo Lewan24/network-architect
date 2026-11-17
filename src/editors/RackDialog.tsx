@@ -1,3 +1,4 @@
+import { DeviceOptions } from '../components/DeviceOptions';
 import { useState, type FormEvent } from 'react';
 import { RackPreviewDialog } from './RackPreviewDialog';
 import { Modal } from '../components/Modal';
@@ -183,11 +184,11 @@ export function RackDialog({
                 <span>Urządzenie z projektu</span>
                 <select value={candidate} onChange={(e) => setCandidate(e.target.value)}>
                   <option value="">Wybierz urządzenie</option>
-                  {available.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} · {kinds[d.kind].label}
-                    </option>
-                  ))}
+                  <DeviceOptions
+                    network={network}
+                    devices={available}
+                    labelFor={(d) => `${d.name} · ${kinds[d.kind].label}`}
+                  />
                 </select>
               </label>
               <button className="secondary" type="button" disabled={!candidate} onClick={add}>
@@ -207,14 +208,16 @@ export function RackDialog({
                 <span>Wybrane urządzenie</span>
                 <select value={selected} onChange={(e) => setSelected(e.target.value)}>
                   <option value="">Wybierz z widoku szafy</option>
-                  {[...rack.mounts]
-                    .sort((a, b) => b.startU - a.startU)
-                    .map((m) => (
-                      <option key={m.deviceId} value={m.deviceId}>
-                        U{m.startU} · {network.devices.find((d) => d.id === m.deviceId)?.name} ·{' '}
-                        {m.heightU}U
-                      </option>
-                    ))}
+                  <DeviceOptions
+                    network={network}
+                    devices={network.devices.filter((d) =>
+                      rack.mounts.some((m) => m.deviceId === d.id),
+                    )}
+                    labelFor={(d) => {
+                      const m = rack.mounts.find((m) => m.deviceId === d.id)!;
+                      return `U${m.startU} · ${d.name} · ${m.heightU}U`;
+                    }}
+                  />
                 </select>
               </label>
               {mount && mountedDevice ? (

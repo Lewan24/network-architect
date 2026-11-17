@@ -1,0 +1,482 @@
+{
+  "name": "PPSK — niezależna sieć testowa",
+  "devices": [
+    {
+      "id": "gateway",
+      "name": "Router",
+      "kind": "gateway",
+      "vlan": 40,
+      "ip": "192.168.40.1",
+      "ipMode": "static",
+      "online": true,
+      "x": 600,
+      "y": 0,
+      "rules": [
+        {
+          "id": "print-631",
+          "action": "allow",
+          "protocol": "TCP",
+          "port": "631",
+          "source": "vlan:10",
+          "destination": "device:printer",
+          "ingress": "lan"
+        },
+        {
+          "id": "print-9100",
+          "action": "allow",
+          "protocol": "TCP",
+          "port": "9100",
+          "source": "vlan:10",
+          "destination": "device:printer",
+          "ingress": "lan"
+        }
+      ],
+      "ports": [
+        {
+          "id": "eth0",
+          "name": "eth0",
+          "connector": "rj45",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "trunk",
+          "accessVlan": 40,
+          "nativeVlan": 40,
+          "tagNative": false,
+          "allowedVlans": [10, 15, 20, 30, 40]
+        }
+      ],
+      "defaultAcl": "deny",
+      "edgeRole": "internal"
+    },
+    {
+      "id": "core",
+      "name": "Switch L3",
+      "kind": "switch-l3",
+      "vlan": 40,
+      "ip": "192.168.40.2",
+      "ipMode": "static",
+      "online": true,
+      "x": 600,
+      "y": 250,
+      "rules": [],
+      "ports": [
+        {
+          "id": "eth0",
+          "name": "eth0",
+          "connector": "rj45",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "trunk",
+          "accessVlan": 40,
+          "nativeVlan": 40,
+          "tagNative": false,
+          "allowedVlans": [10, 15, 20, 30, 40]
+        },
+        {
+          "id": "eth1",
+          "name": "eth1",
+          "connector": "rj45",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "trunk",
+          "accessVlan": 40,
+          "nativeVlan": 40,
+          "tagNative": false,
+          "allowedVlans": [10, 15, 20, 30, 40]
+        },
+        {
+          "id": "eth2",
+          "name": "eth2",
+          "connector": "rj45",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "access",
+          "accessVlan": 20
+        }
+      ],
+      "allowedVlans": [10, 15, 20, 30, 40],
+      "defaultAcl": "deny"
+    },
+    {
+      "id": "switch",
+      "name": "Switch L2",
+      "kind": "switch",
+      "vlan": 40,
+      "ip": "192.168.40.3",
+      "ipMode": "static",
+      "online": true,
+      "x": 300,
+      "y": 450,
+      "rules": [],
+      "ports": [
+        {
+          "id": "eth0",
+          "name": "eth0",
+          "connector": "rj45",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "trunk",
+          "accessVlan": 40,
+          "nativeVlan": 40,
+          "tagNative": false,
+          "allowedVlans": [10, 15, 20, 30, 40]
+        },
+        {
+          "id": "eth1",
+          "name": "eth1",
+          "connector": "rj45",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "trunk",
+          "accessVlan": 40,
+          "nativeVlan": 40,
+          "tagNative": false,
+          "allowedVlans": [10, 15, 20, 30, 40]
+        }
+      ],
+      "allowedVlans": [10, 15, 20, 30, 40]
+    },
+    {
+      "id": "ap",
+      "name": "AP PPSK",
+      "kind": "accesspoint",
+      "vlan": 40,
+      "ip": "192.168.40.4",
+      "ipMode": "static",
+      "online": true,
+      "x": 300,
+      "y": 650,
+      "rules": [],
+      "ports": [
+        {
+          "id": "eth0",
+          "name": "eth0",
+          "connector": "rj45",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "trunk",
+          "accessVlan": 40,
+          "nativeVlan": 40,
+          "tagNative": false,
+          "allowedVlans": [10, 15, 20, 30, 40]
+        },
+        {
+          "id": "radio0",
+          "name": "radio0",
+          "connector": "wifi",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "access",
+          "accessVlan": 10
+        },
+        {
+          "id": "ssid:guest",
+          "name": "ssid:guest",
+          "connector": "wifi",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "access",
+          "accessVlan": 15
+        }
+      ],
+      "ssid": "Lab",
+      "wifiVlan": 10,
+      "wifiPpsk": [
+        {
+          "id": "staff-key",
+          "name": "Pracownicy",
+          "password": "lab-staff-test-123",
+          "vlan": 10,
+          "enabled": true
+        },
+        {
+          "id": "print-key",
+          "name": "Drukarki",
+          "password": "lab-printer-test-123",
+          "vlan": 30,
+          "enabled": true
+        }
+      ],
+      "wifiNetworks": [
+        {
+          "id": "guest",
+          "ssid": "Goście",
+          "vlan": 15
+        }
+      ]
+    },
+    {
+      "id": "staff",
+      "name": "Pracownik",
+      "kind": "laptop",
+      "vlan": 10,
+      "ip": "",
+      "ipMode": "auto",
+      "online": true,
+      "x": 50,
+      "y": 850,
+      "rules": [],
+      "ports": [
+        {
+          "id": "wlan0",
+          "name": "wlan0",
+          "connector": "wifi",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "auto",
+          "accessVlan": 40,
+          "wifiPassword": "lab-staff-test-123"
+        }
+      ]
+    },
+    {
+      "id": "printer",
+      "name": "Drukarka",
+      "kind": "printer",
+      "vlan": 30,
+      "ip": "",
+      "ipMode": "auto",
+      "online": true,
+      "x": 350,
+      "y": 850,
+      "rules": [],
+      "ports": [
+        {
+          "id": "wlan0",
+          "name": "wlan0",
+          "connector": "wifi",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "auto",
+          "accessVlan": 40,
+          "wifiPassword": "lab-printer-test-123"
+        }
+      ],
+      "services": [
+        {
+          "id": "631",
+          "name": "Drukowanie",
+          "protocol": "TCP",
+          "port": 631,
+          "enabled": true
+        },
+        {
+          "id": "9100",
+          "name": "Drukowanie",
+          "protocol": "TCP",
+          "port": 9100,
+          "enabled": true
+        }
+      ]
+    },
+    {
+      "id": "guest",
+      "name": "Gość",
+      "kind": "mobile-phone",
+      "vlan": 15,
+      "ip": "",
+      "ipMode": "auto",
+      "online": true,
+      "x": 650,
+      "y": 850,
+      "rules": [],
+      "ports": [
+        {
+          "id": "wlan0",
+          "name": "wlan0",
+          "connector": "wifi",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "auto",
+          "accessVlan": 40
+        }
+      ]
+    },
+    {
+      "id": "server",
+      "name": "Serwer",
+      "kind": "server",
+      "vlan": 20,
+      "ip": "192.168.20.29",
+      "ipMode": "static",
+      "online": true,
+      "x": 900,
+      "y": 450,
+      "rules": [],
+      "ports": [
+        {
+          "id": "eth0",
+          "name": "eth0",
+          "connector": "rj45",
+          "enabled": true,
+          "speeds": [1000],
+          "mode": "auto",
+          "accessVlan": 20
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "id": "gateway-core",
+      "a": "gateway",
+      "aPortId": "eth0",
+      "b": "core",
+      "bPortId": "eth0",
+      "cable": "cat6"
+    },
+    {
+      "id": "core-switch",
+      "a": "core",
+      "aPortId": "eth1",
+      "b": "switch",
+      "bPortId": "eth0",
+      "cable": "cat6"
+    },
+    {
+      "id": "switch-ap",
+      "a": "switch",
+      "aPortId": "eth1",
+      "b": "ap",
+      "bPortId": "eth0",
+      "cable": "cat6"
+    },
+    {
+      "id": "core-server",
+      "a": "core",
+      "aPortId": "eth2",
+      "b": "server",
+      "bPortId": "eth0",
+      "cable": "cat6"
+    },
+    {
+      "id": "ap-staff",
+      "a": "ap",
+      "aPortId": "radio0",
+      "b": "staff",
+      "bPortId": "wlan0",
+      "cable": "wireless"
+    },
+    {
+      "id": "ap-printer",
+      "a": "ap",
+      "aPortId": "radio0",
+      "b": "printer",
+      "bPortId": "wlan0",
+      "cable": "wireless"
+    },
+    {
+      "id": "ap-guest",
+      "a": "ap",
+      "aPortId": "ssid:guest",
+      "b": "guest",
+      "bPortId": "wlan0",
+      "cable": "wireless"
+    }
+  ],
+  "vlans": [
+    {
+      "id": 10,
+      "name": "VLAN 10",
+      "cidr": "192.168.10.0/24",
+      "gateway": "192.168.10.1",
+      "gatewayDeviceId": "gateway",
+      "dhcpEnabled": true,
+      "dhcpServerId": "gateway",
+      "dhcpStart": "192.168.10.85",
+      "dhcpEnd": "192.168.10.200",
+      "leaseMinutes": 120,
+      "color": "#718fae"
+    },
+    {
+      "id": 15,
+      "name": "VLAN 15",
+      "cidr": "192.168.15.0/24",
+      "gateway": "192.168.15.1",
+      "gatewayDeviceId": "gateway",
+      "dhcpEnabled": true,
+      "dhcpServerId": "gateway",
+      "dhcpStart": "192.168.15.85",
+      "dhcpEnd": "192.168.15.200",
+      "leaseMinutes": 120,
+      "color": "#718fae"
+    },
+    {
+      "id": 20,
+      "name": "VLAN 20",
+      "cidr": "192.168.20.0/24",
+      "gateway": "192.168.20.1",
+      "gatewayDeviceId": "gateway",
+      "dhcpEnabled": true,
+      "dhcpServerId": "gateway",
+      "dhcpStart": "192.168.20.85",
+      "dhcpEnd": "192.168.20.200",
+      "leaseMinutes": 120,
+      "color": "#718fae"
+    },
+    {
+      "id": 30,
+      "name": "VLAN 30",
+      "cidr": "192.168.30.0/24",
+      "gateway": "192.168.30.1",
+      "gatewayDeviceId": "gateway",
+      "dhcpEnabled": true,
+      "dhcpServerId": "gateway",
+      "dhcpStart": "192.168.30.85",
+      "dhcpEnd": "192.168.30.200",
+      "leaseMinutes": 120,
+      "color": "#718fae"
+    },
+    {
+      "id": 40,
+      "name": "VLAN 40",
+      "cidr": "192.168.40.0/24",
+      "gateway": "192.168.40.1",
+      "gatewayDeviceId": "gateway",
+      "dhcpEnabled": true,
+      "dhcpServerId": "gateway",
+      "dhcpStart": "192.168.40.85",
+      "dhcpEnd": "192.168.40.200",
+      "leaseMinutes": 120,
+      "color": "#718fae"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "ppsk-print",
+      "name": "Drukowanie",
+      "probe": {
+        "source": "staff",
+        "destination": "printer",
+        "protocol": "TCP",
+        "port": 631,
+        "checkReply": true
+      },
+      "expected": true
+    },
+    {
+      "id": "ppsk-guest",
+      "name": "Izolacja gości",
+      "probe": {
+        "source": "guest",
+        "destination": "printer",
+        "protocol": "TCP",
+        "port": 631,
+        "checkReply": true
+      },
+      "expected": false
+    },
+    {
+      "id": "ppsk-server",
+      "name": "Izolacja drukarki",
+      "probe": {
+        "source": "printer",
+        "destination": "server",
+        "protocol": "ICMP",
+        "port": 0,
+        "checkReply": true
+      },
+      "expected": false
+    }
+  ]
+}

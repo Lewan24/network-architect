@@ -1,3 +1,4 @@
+import { wirelessAssociation } from './wifi';
 import type { Cable, Device, Link, Network, Port } from './networkTypes';
 
 // A derived, non-serializable snapshot caches physical state during one traversal.
@@ -68,6 +69,10 @@ export function defaultPorts(d: Device): Port[] {
     return [
       { ...makePort('eth0', 'rj45', d.vlan), mode: 'trunk', nativeVlan: d.vlan || 1 },
       makePort('radio0', 'wifi', d.wifiVlan ?? d.vlan),
+      ...(d.wifiNetworks || []).map((n) => ({
+        ...makePort(`ssid:${n.id}`, 'wifi', n.vlan),
+        name: n.ssid,
+      })),
     ];
   const count = switching(d)
     ? 24
@@ -295,6 +300,13 @@ export function transferVlan(
       d.accessSession &&
       (d.accessSession.nasId === link.a || d.accessSession.nasId === link.b),
   );
+  const association = wirelessAssociation(network, link);
+  if (association?.ppsk !== undefined) {
+    if (association.error) return { vlan, error: association.error };
+    return vlan === association.vlan
+      ? { vlan }
+      : { vlan, error: `PPSK: to hasło przypisuje VLAN ${association.vlan}, nie VLAN ${vlan}.` };
+  }
   if (endpoint?.accessSession) {
     const session = endpoint.accessSession;
     if (session.state !== 'accepted') return { vlan, error: session.reason };
@@ -305,6 +317,13 @@ export function transferVlan(
     link = { ...link, mode: 'access', accessVlan: session.vlan };
     source = source && { ...source, mode: 'access', accessVlan: session.vlan };
     target = target && { ...target, mode: 'access', accessVlan: session.vlan };
+  }
+  if (link.cable === 'wireless' || (source?.connector === 'wifi' && target?.connector === 'wifi')) {
+    if (association?.error) return { vlan, error: association.error };
+    const selected = association?.vlan;
+    return vlan === selected
+      ? { vlan }
+      : { vlan, error: `SSID nie przenosi VLAN ${vlan} (wybrano VLAN ${selected}).` };
   }
   if ((!source || source.mode === 'auto') && (!target || target.mode === 'auto')) {
     const allowed =

@@ -1,3 +1,4 @@
+import { DeviceOptions } from '../components/DeviceOptions';
 import { unusedStaticAddress } from '../project/projectActions';
 import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { Plus, Trash } from '@phosphor-icons/react';
@@ -108,17 +109,17 @@ export function DnsEditor({
               }
             >
               <option value="__ip">Własny adres IPv4</option>
-              {network.devices
-                .filter((d) =>
+              <DeviceOptions
+                network={network}
+                devices={network.devices.filter((d) =>
                   device.publicDns
                     ? !!d.wanIp || d.kind === 'internet'
-                    : d.ip || d.ipMode === 'auto',
-                )
-                .map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} · {device.publicDns && d.wanIp ? d.wanIp : d.ip || 'oczekuje na DHCP'}
-                  </option>
-                ))}
+                    : !!d.ip || d.ipMode === 'auto',
+                )}
+                labelFor={(d) =>
+                  `${d.name} · ${device.publicDns && d.wanIp ? d.wanIp : d.ip || 'oczekuje na DHCP'}`
+                }
+              />
             </select>
             {!r.deviceId && (
               <input

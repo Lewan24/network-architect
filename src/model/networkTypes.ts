@@ -50,6 +50,8 @@ export type Port = {
   module?: '1g-sx' | '1g-lx' | '10g-sr' | '10g-lr';
   poe?: 'off' | 'af' | 'at' | 'bt3' | 'bt4';
   dot1x?: boolean;
+  /** Test credential for a Wi-Fi client adapter; saved locally with the project. */
+  wifiPassword?: string;
 };
 export type Cable =
   'cat5e' | 'cat6' | 'cat6a' | 'om3' | 'om4' | 'os2' | 'dac' | 'wireless' | 'virtual';
@@ -66,6 +68,14 @@ export type NetworkInterface = {
   metric: number;
   dnsServerIds?: string[];
   lease?: DhcpLease;
+};
+
+export type WifiPpsk = {
+  id: string;
+  name: string;
+  password: string;
+  vlan: number;
+  enabled: boolean;
 };
 
 export type Device = {
@@ -95,6 +105,10 @@ export type Device = {
   serverRole?: 'server' | 'hypervisor';
   hypervisorVendor?: 'VMware ESXi' | 'Proxmox VE' | 'Hyper-V' | 'KVM';
   hostId?: string;
+  mac?: string;
+  wifiNetworks?: { id: string; ssid: string; vlan: number; ppsk?: WifiPpsk[] }[];
+  /** Undefined = legacy VLAN-per-SSID; an empty list enables PPSK and rejects every password. */
+  wifiPpsk?: WifiPpsk[];
   ssid?: string;
   /** One bridged SSID; omitted in older projects to use the management VLAN. */
   wifiVlan?: number;
@@ -107,7 +121,13 @@ export type Device = {
   publicDns?: boolean;
   platform?: string;
   radius?: { users: RadiusUser[]; clients: { nasId: string; secret: string }[] };
-  radiusNas?: { serverId: string; secret: string; dynamicVlan: boolean; accounting: boolean };
+  radiusNas?: {
+    serverId: string;
+    secret: string;
+    dynamicVlan: boolean;
+    accounting: boolean;
+    mab?: boolean;
+  };
   wifiEnterprise?: boolean;
   supplicant?: { username: string; password: string };
   /** Recomputed from configuration and reachability; never an authorization credential. */
@@ -133,6 +153,7 @@ export type RadiusUser = {
   vlan?: number;
   role: string;
   allowedNasIds?: string[];
+  mac?: string;
 };
 export type RadiusSession = {
   state: 'accepted' | 'rejected' | 'unavailable';

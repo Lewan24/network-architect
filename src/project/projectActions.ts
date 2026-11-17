@@ -1,3 +1,4 @@
+import { randomMac } from '../model/mac';
 import { defaultPorts } from '../model/ports';
 import type { Point } from '../canvas/canvasGeometry';
 import { defaultServices, kinds } from '../devices/deviceCatalog';
@@ -26,6 +27,7 @@ export function createNetworkDevice(network: Network, kind: Kind, point: Point):
     0;
   const device: Device = {
     id: crypto.randomUUID(),
+    mac: randomMac(),
     kind,
     name: `${kinds[kind].label} ${network.devices.filter((device) => device.kind === kind).length + 1}`,
     ip: infrastructure
@@ -72,6 +74,7 @@ export function createNetworkDevice(network: Network, kind: Kind, point: Point):
 export function createGuestDevice(network: Network, host: Device): Device {
   return {
     id: crypto.randomUUID(),
+    mac: randomMac(),
     kind: 'vm',
     name: `VM ${network.devices.filter((device) => device.kind === 'vm').length + 1}`,
     ip: '',
@@ -120,6 +123,7 @@ export function duplicateNetworkDevice(network: Network, device: Device): Device
   return {
     ...structuredClone(device),
     id: crypto.randomUUID(),
+    mac: randomMac(),
     name: `${device.name.slice(0, 32)} — kopia`,
     lease: undefined,
     ...(device.rack ? { rack: { ...device.rack, mounts: [] } } : {}),

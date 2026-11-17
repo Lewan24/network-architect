@@ -120,17 +120,26 @@ try {
       await tabsFit();
       await dialog().getByRole('button', { name: 'Porty i PoE', exact: true }).click();
       await visible(dialog().getByLabel('Port włączony', { exact: true }));
+      assert.equal(
+        await dialog()
+          .getByRole('combobox', { name: /Duplex/ })
+          .count(),
+        0,
+        'Basic mode hides duplex',
+      );
       await cancel();
       console.log(`PASS ${width}px: navigation, diagnostics, device tabs and port controls`);
     }
 
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByLabel('Tryb zaawansowany', { exact: true }).check();
     await page.getByRole('button', { name: 'Urządzenia', exact: true }).click();
     const tiles = page.locator('.device-tile');
-    assert.equal(await tiles.count(), 15);
+    assert.equal(await tiles.count(), 22);
     for (let index = 0; index < (await tiles.count()); index++) {
       const tile = tiles.nth(index);
       const name = await tile.locator('strong').innerText();
+      if (name === 'Szafa RACK') continue; // Rack configuration is covered by the dedicated rack tests.
       await tile.click();
       if (!(await page.getByRole('dialog').count()))
         await page
@@ -182,6 +191,7 @@ try {
     // Reload the original demo in a fresh context for mutation/undo and simulation checks.
     await page.close();
     page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    await page.addInitScript(() => localStorage.setItem('netweave-advanced', 'true'));
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('console', (message) => {
       if (message.type() === 'error') errors.push(message.text());
@@ -284,6 +294,7 @@ try {
     );
     await page.close();
     page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    await page.addInitScript(() => localStorage.setItem('netweave-advanced', 'true'));
     const legacy = structuredClone(original);
     for (const device of legacy.devices) {
       for (const key of ['ports', 'interfaces', 'powerSource', 'powerWatts', 'poeBudgetWatts'])
@@ -299,7 +310,7 @@ try {
     await page.goto(url);
     await page.waitForFunction(() =>
       JSON.parse(localStorage.getItem('netweave-project')).devices.every(
-        (device) => device.ports?.length,
+        (device) => device.kind === 'rack' || device.ports?.length,
       ),
     );
     await page.getByRole('button', { name: 'Obiekty', exact: true }).click();
@@ -315,6 +326,7 @@ try {
     console.log('PASS startup migration: saved project without ports or explicit NICs');
     await page.close();
     page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    await page.addInitScript(() => localStorage.setItem('netweave-advanced', 'true'));
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('console', (message) => {
       if (message.type() === 'error') errors.push(message.text());
@@ -438,6 +450,7 @@ try {
     );
     await page.close();
     page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+    await page.addInitScript(() => localStorage.setItem('netweave-advanced', 'true'));
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('console', (message) => {
       if (message.type() === 'error') errors.push(message.text());
@@ -461,7 +474,7 @@ try {
     await cancel();
     await page.getByRole('button', { name: 'Symulacja', exact: true }).click();
     const scenarios = page.getByLabel('Scenariusz przykładowej sieci');
-    assert.equal(await scenarios.locator('option').count(), 25);
+    assert.equal(await scenarios.locator('option').count(), 28);
     await page.getByRole('slider', { name: 'Tempo animacji', exact: true }).focus();
     await page.getByRole('slider', { name: 'Tempo animacji', exact: true }).press('End');
     for (const [id, expected] of [
@@ -524,10 +537,10 @@ try {
   await dialog().getByRole('button', { name: 'Zamknij', exact: true }).click();
   console.log('PASS guide layouts and accessible tooltip with independent Escape');
   for (const [id, name, scenario, count] of [
-    ['small-business', 'Mała firma · bezpieczny start', 'print', 17],
-    ['home-lab', 'Home lab · dom, IoT i Proxmox', 'ha', 13],
-    ['enterprise', 'Duża firma · strefy i dwie zapory', 'database', 35],
-    ['anti-pattern', 'Antywzorzec · płaska i otwarta sieć', 'guest-files', 10],
+    ['small-business', 'Mała firma · bezpieczny start', 'print', 27],
+    ['home-lab', 'Home lab · dom, IoT i Proxmox', 'ha', 23],
+    ['enterprise', 'Duża firma · strefy i dwie zapory', 'database', 45],
+    ['anti-pattern', 'Antywzorzec · płaska i otwarta sieć', 'guest-files', 20],
   ]) {
     await page.getByRole('button', { name: 'Przykładowe projekty', exact: true }).click();
     await page
@@ -595,8 +608,84 @@ try {
     .click();
   await visible(dialog().getByRole('heading', { name: 'Edytuj: Firewall danych' }));
   assert((await dialog().locator('.acl-rule-card').count()) > 0);
+  const originalAclRules = (await savedProject()).devices.find(
+    (d) => d.id === 'enterprise-vault-fw',
+  ).rules;
+  const firstAclHeight = (await dialog().locator('.acl-rule-card').first().boundingBox()).height;
+  assert(firstAclHeight < 190, `ACL rows should be compact (got ${firstAclHeight}px)`);
+  await dialog().getByRole('button', { name: 'Wstaw regułę przed pozycją 2', exact: true }).click();
+  assert.equal(await dialog().locator('.acl-rule-card').count(), originalAclRules.length + 1);
+  await dialog().getByLabel('ACL 2: port', { exact: true }).fill('631');
+  await page.screenshot({ path: '/tmp/netweave-acl-compact-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 1000 });
+  assert(
+    await dialog().evaluate((d) => d.scrollWidth <= d.clientWidth + 1),
+    'Compact ACL must fit mobile',
+  );
+  assert(
+    await dialog()
+      .locator('.acl-rule-card')
+      .first()
+      .evaluate((d) => d.scrollWidth <= d.clientWidth + 1),
+    'Rule controls must fit mobile',
+  );
+  await page.screenshot({ path: '/tmp/netweave-acl-compact-mobile.png' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await dialog()
+    .getByRole('button', { name: /Zapisz/ })
+    .click();
+  await page.waitForFunction((count) => {
+    const rules = JSON.parse(localStorage.getItem('netweave-project')).devices.find(
+      (d) => d.id === 'enterprise-vault-fw',
+    ).rules;
+    return rules.length === count + 1 && rules[1].port === '631';
+  }, originalAclRules.length);
+  const insertedRules = (await savedProject()).devices.find(
+    (d) => d.id === 'enterprise-vault-fw',
+  ).rules;
+  assert.deepEqual(
+    insertedRules.filter((_, i) => i !== 1),
+    originalAclRules,
+  );
+  await page.getByRole('button', { name: 'Cofnij', exact: true }).click();
+  await page.waitForFunction(
+    (count) =>
+      JSON.parse(localStorage.getItem('netweave-project')).devices.find(
+        (d) => d.id === 'enterprise-vault-fw',
+      ).rules.length === count,
+    originalAclRules.length,
+  );
+  await page.getByRole('button', { name: /^Firewall danych,/ }).click();
+  await page
+    .locator('.selection-actions')
+    .getByRole('button', { name: 'Edytuj', exact: true })
+    .click();
+  await dialog()
+    .getByRole('button', { name: /^ACL ·/ })
+    .click();
+  console.log(
+    'PASS compact ACL: inline insertion, preserved priority, save/undo and mobile layout',
+  );
   await page.screenshot({ path: '/tmp/netweave-acl-cards.png' });
   const originalRulePort = await dialog().getByLabel('ACL 1: port', { exact: true }).inputValue();
+  const protocolPicker = dialog().getByLabel('ACL 1: protokół', { exact: true });
+  const originalRuleProtocol = await protocolPicker.inputValue();
+  await protocolPicker.selectOption('TCP');
+  await dialog().getByLabel('ACL 1: port', { exact: true }).fill('443');
+  await protocolPicker.selectOption('ANY');
+  assert.equal(await dialog().getByLabel('ACL 1: port', { exact: true }).inputValue(), '*');
+  await dialog().getByLabel('ACL 1: port', { exact: true }).fill('53');
+  assert.equal(await dialog().getByLabel('ACL 1: port', { exact: true }).inputValue(), '53');
+  const addressGroups = await dialog()
+    .getByLabel('ACL 1: źródło', { exact: true })
+    .locator('optgroup')
+    .evaluateAll((groups) => groups.map((g) => g.label));
+  assert.equal(addressGroups[0], 'Całe sieci / VLAN-y');
+  assert(addressGroups.slice(1).every((label) => label.startsWith('Urządzenia ·')));
+  await protocolPicker.selectOption(originalRuleProtocol);
+  console.log(
+    'PASS ACL controls: ANY defaults to editable wildcard; VLAN networks precede grouped devices',
+  );
   await dialog().getByLabel('ACL 1: port', { exact: true }).fill('443');
   await dialog()
     .getByRole('button', { name: /Zapisz/ })

@@ -1,3 +1,4 @@
+import { useAdvancedMode } from '../app/advancedMode';
 import { SettingsSection } from '../components/SettingsSection';
 import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import type { Network, Port } from '../model/networkTypes';
@@ -11,6 +12,7 @@ export function PortFields({
   network: Network;
   patch: (p: Partial<Port>) => void;
 }) {
+  const advanced = useAdvancedMode();
   return (
     <div className="port-fields">
       <SettingsSection
@@ -43,6 +45,7 @@ export function PortFields({
                 patch({
                   connector,
                   module: undefined,
+                  wifiPassword: connector === 'wifi' ? p.wifiPassword : undefined,
                   speedMbps: undefined,
                   speeds:
                     connector === 'sfp+'
@@ -64,61 +67,65 @@ export function PortFields({
             </select>
           </label>
         </div>
-        <fieldset className="vlan-checks">
-          <legend>Obsługiwane prędkości portu (Mb/s)</legend>
-          <div className="inline-checks">
-            {[10, 100, 1000, 2500, 5000, 10000].map((speed) => (
-              <label key={speed} className="checkbox-label">
-                <input
-                  type="checkbox"
-                  checked={p.speeds.includes(speed)}
-                  onChange={(e) =>
-                    patch({
-                      speeds: e.target.checked
-                        ? [...p.speeds, speed].sort((a, b) => a - b)
-                        : p.speeds.filter((s) => s !== speed),
-                      speedMbps: undefined,
-                    })
-                  }
-                />
-                {speed}
+        {advanced && (
+          <>
+            <fieldset className="vlan-checks">
+              <legend>Obsługiwane prędkości portu (Mb/s)</legend>
+              <div className="inline-checks">
+                {[10, 100, 1000, 2500, 5000, 10000].map((speed) => (
+                  <label key={speed} className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={p.speeds.includes(speed)}
+                      onChange={(e) =>
+                        patch({
+                          speeds: e.target.checked
+                            ? [...p.speeds, speed].sort((a, b) => a - b)
+                            : p.speeds.filter((s) => s !== speed),
+                          speedMbps: undefined,
+                        })
+                      }
+                    />
+                    {speed}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <div className="scope-grid">
+              <label className="field">
+                <span>
+                  Prędkość administracyjna <FieldHelp topic="speed" />
+                </span>
+                <select
+                  title={fieldTips.speed}
+                  value={p.speedMbps || 0}
+                  onChange={(e) => patch({ speedMbps: +e.target.value || undefined })}
+                >
+                  <option value={0}>Auto — najwyższa wspólna</option>
+                  {p.speeds.map((s) => (
+                    <option key={s} value={s}>
+                      {s} Mb/s
+                    </option>
+                  ))}
+                </select>
               </label>
-            ))}
-          </div>
-        </fieldset>
-        <div className="scope-grid">
-          <label className="field">
-            <span>
-              Prędkość administracyjna <FieldHelp topic="speed" />
-            </span>
-            <select
-              title={fieldTips.speed}
-              value={p.speedMbps || 0}
-              onChange={(e) => patch({ speedMbps: +e.target.value || undefined })}
-            >
-              <option value={0}>Auto — najwyższa wspólna</option>
-              {p.speeds.map((s) => (
-                <option key={s} value={s}>
-                  {s} Mb/s
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>
-              Duplex <FieldHelp topic="duplex" />
-            </span>
-            <select
-              title={fieldTips.duplex}
-              value={p.duplex || 'auto'}
-              onChange={(e) => patch({ duplex: e.target.value as Port['duplex'] })}
-            >
-              <option value="auto">Auto</option>
-              <option value="full">Full duplex</option>
-              <option value="half">Half duplex (10/100)</option>
-            </select>
-          </label>
-        </div>
+              <label className="field">
+                <span>
+                  Duplex <FieldHelp topic="duplex" />
+                </span>
+                <select
+                  title={fieldTips.duplex}
+                  value={p.duplex || 'auto'}
+                  onChange={(e) => patch({ duplex: e.target.value as Port['duplex'] })}
+                >
+                  <option value="auto">Auto</option>
+                  <option value="full">Full duplex</option>
+                  <option value="half">Half duplex (10/100)</option>
+                </select>
+              </label>
+            </div>
+          </>
+        )}
         {(p.connector === 'sfp' || p.connector === 'sfp+') && (
           <label className="field">
             <span>
@@ -194,22 +201,24 @@ export function PortFields({
             </label>
             <fieldset className="vlan-checks">
               <legend>Allowed VLANs — pusta lista oznacza wszystkie</legend>
-              {network.vlans.map((v) => (
-                <label className="checkbox-label" key={v.id}>
-                  <input
-                    type="checkbox"
-                    checked={!!p.allowedVlans?.includes(v.id)}
-                    onChange={(e) =>
-                      patch({
-                        allowedVlans: e.target.checked
-                          ? [...(p.allowedVlans || []), v.id]
-                          : p.allowedVlans?.filter((id) => id !== v.id),
-                      })
-                    }
-                  />
-                  {v.name} · {v.id}
-                </label>
-              ))}
+              {[...network.vlans]
+                .sort((a, b) => a.id - b.id)
+                .map((v) => (
+                  <label className="checkbox-label" key={v.id}>
+                    <input
+                      type="checkbox"
+                      checked={!!p.allowedVlans?.includes(v.id)}
+                      onChange={(e) =>
+                        patch({
+                          allowedVlans: e.target.checked
+                            ? [...(p.allowedVlans || []), v.id]
+                            : p.allowedVlans?.filter((id) => id !== v.id),
+                        })
+                      }
+                    />
+                    {v.name} · {v.id}
+                  </label>
+                ))}
             </fieldset>
           </>
         )}

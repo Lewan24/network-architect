@@ -26,9 +26,14 @@ export function NatEditor({
       <datalist id={listId}>
         {network.devices
           .filter((x) => x.ip)
+          .sort(
+            (a, b) =>
+              (a.vlan || Infinity) - (b.vlan || Infinity) ||
+              a.name.localeCompare(b.name, 'pl', { numeric: true }),
+          )
           .map((x) => (
             <option key={x.id} value={x.ip}>
-              {x.name}
+              {x.vlan ? `VLAN ${x.vlan}` : 'WAN / bez VLAN-u'} · {x.name}
             </option>
           ))}
       </datalist>

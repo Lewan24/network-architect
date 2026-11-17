@@ -72,6 +72,15 @@ export function InterfacesEditor({
           Włącz osobną konfigurację kart
         </button>
       )}
+      {routing && device.interfaces && (
+        <button
+          className="secondary"
+          type="button"
+          onClick={() => patch({ interfaces: undefined })}
+        >
+          Użyj bram z konfiguracji sieci VLAN
+        </button>
+      )}
       {interfaces.map((n, i) => {
         const resolved = preview.interfaces?.find((p) => p.id === n.id);
         return (
@@ -125,11 +134,13 @@ export function InterfacesEditor({
                   }
                 >
                   <option value={0}>Bez VLAN / interfejs routowany</option>
-                  {network.vlans.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} · {v.id}
-                    </option>
-                  ))}
+                  {[...network.vlans]
+                    .sort((a, b) => a.id - b.id)
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name} · {v.id}
+                      </option>
+                    ))}
                 </select>
               </label>
               <label className="field">

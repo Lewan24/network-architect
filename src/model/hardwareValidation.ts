@@ -26,6 +26,11 @@ export function validatePort(p: Port) {
     new Set(p.speeds).size !== p.speeds.length
   )
     throw Error('Port wymaga listy obsługiwanych prędkości 10–10000 Mb/s.');
+  if (
+    p.wifiPassword !== undefined &&
+    (p.connector !== 'wifi' || typeof p.wifiPassword !== 'string' || p.wifiPassword.length > 64)
+  )
+    throw Error('Hasło klienta Wi-Fi może mieć maksymalnie 64 znaki i dotyczy tylko portu Wi-Fi.');
   if (p.speedMbps !== undefined && !p.speeds.includes(p.speedMbps))
     throw Error('Wymuszona prędkość nie jest obsługiwana przez port.');
   if (p.duplex !== undefined && !['auto', 'half', 'full'].includes(p.duplex))

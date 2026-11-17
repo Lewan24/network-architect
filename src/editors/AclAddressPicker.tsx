@@ -1,3 +1,4 @@
+import { DeviceOptions } from '../components/DeviceOptions';
 import type { Network } from '../model/network';
 export function AclAddressPicker({
   value,
@@ -24,22 +25,22 @@ export function AclAddressPicker({
         onChange={(e) => change(e.target.value === '__ip' ? '' : e.target.value)}
       >
         <option value="*">Dowolny (any)</option>
-        <optgroup label="Urządzenia — adres aktualizowany z DHCP">
-          {network.devices
-            .filter((d) => d.kind !== 'switch-unmanaged')
-            .map((d) => (
-              <option key={d.id} value={`device:${d.id}`}>
-                {d.name} · {d.ip || 'czeka na DHCP'}
+        <optgroup label="Całe sieci / VLAN-y">
+          {[...network.vlans]
+            .sort((a, b) => a.id - b.id)
+            .map((v) => (
+              <option key={v.id} value={`vlan:${v.id}`}>
+                {v.name} · VLAN {v.id} · {v.cidr}
               </option>
             ))}
         </optgroup>
-        <optgroup label="Całe sieci / VLAN-y">
-          {network.vlans.map((v) => (
-            <option key={v.id} value={`vlan:${v.id}`}>
-              {v.name} · VLAN {v.id} · {v.cidr}
-            </option>
-          ))}
-        </optgroup>
+        <DeviceOptions
+          network={network}
+          devices={network.devices.filter(
+            (d) => d.kind !== 'switch-unmanaged' && d.kind !== 'rack',
+          )}
+          valueFor={(d) => `device:${d.id}`}
+        />
         {known && !available.includes(value) && (
           <option value={value}>Usunięty obiekt — reguła nie pasuje</option>
         )}

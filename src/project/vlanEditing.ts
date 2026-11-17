@@ -19,7 +19,16 @@ export function vlanReferences(network: Network, id: number): string[] {
     )
   )
     references.push('konfiguracja portów');
-  if (network.devices.some((d) => d.wifiVlan === id)) references.push('VLAN klientów Wi-Fi');
+  if (
+    network.devices.some(
+      (d) =>
+        d.wifiPpsk?.some((k) => k.vlan === id) ||
+        d.wifiNetworks?.some((n) => n.ppsk?.some((k) => k.vlan === id)),
+    )
+  )
+    references.push('hasła PPSK');
+  if (network.devices.some((d) => d.wifiVlan === id || d.wifiNetworks?.some((n) => n.vlan === id)))
+    references.push('VLAN klientów Wi-Fi');
   if (network.devices.some((d) => d.allowedVlans?.includes(id))) references.push('VLAN-y switchy');
   if (
     network.links.some(
@@ -86,6 +95,10 @@ export function removeVlan(network: Network, id: number): Network {
           ? { ...clean(n), ipMode: 'auto' as const, enabled: false, dnsServerIds: [] }
           : n,
       ),
+      wifiPpsk: d.wifiPpsk?.filter((k) => k.vlan !== id),
+      wifiNetworks: d.wifiNetworks
+        ?.filter((n) => n.vlan !== id)
+        .map((n) => ({ ...n, ppsk: n.ppsk?.filter((k) => k.vlan !== id) })),
       ...(d.wifiVlan === id ? { wifiVlan: undefined } : {}),
       allowedVlans: d.allowedVlans?.filter((v) => v !== id),
       rules: d.rules.filter((r) => r.source !== `vlan:${id}` && r.destination !== `vlan:${id}`),

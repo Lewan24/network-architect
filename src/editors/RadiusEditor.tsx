@@ -1,3 +1,4 @@
+import { DeviceOptions } from '../components/DeviceOptions';
 import { SettingsSection } from '../components/SettingsSection';
 import { isRadiusNas, isSupplicant } from '../model/radius';
 import type { Device, Network, RadiusUser } from '../model/networkTypes';
@@ -37,9 +38,17 @@ export function RadiusEditor({
             {radius.users.map((user) => (
               <fieldset key={user.id} className="radius-entry">
                 <legend>{user.username || 'Nowe konto'}</legend>
+                <label className="field">
+                  <span>MAC dla MAB (puste = konto 802.1X)</span>
+                  <input
+                    value={user.mac || ''}
+                    placeholder="02:ab:cd:ef:01:23"
+                    onChange={(e) => updateUser(user.id, { mac: e.target.value || undefined })}
+                  />
+                </label>
                 <div className="scope-grid">
                   <label className="field">
-                    <span>Login</span>
+                    <span>Login / nazwa polityki</span>
                     <input
                       maxLength={80}
                       value={user.username}
@@ -74,11 +83,13 @@ export function RadiusEditor({
                       }
                     >
                       <option value="">VLAN dostępu klienta</option>
-                      {network.vlans.map((v) => (
-                        <option value={v.id} key={v.id}>
-                          {v.name} · VLAN {v.id}
-                        </option>
-                      ))}
+                      {[...network.vlans]
+                        .sort((a, b) => a.id - b.id)
+                        .map((v) => (
+                          <option value={v.id} key={v.id}>
+                            {v.name} · VLAN {v.id}
+                          </option>
+                        ))}
                     </select>
                   </label>
                 </div>
@@ -179,11 +190,7 @@ export function RadiusEditor({
                       }
                     >
                       <option value="">Wybierz AP / switch</option>
-                      {nasDevices.map((n) => (
-                        <option key={n.id} value={n.id}>
-                          {n.name}
-                        </option>
-                      ))}
+                      <DeviceOptions network={network} devices={nasDevices} />
                     </select>
                   </label>
                   <label className="field">
@@ -293,6 +300,21 @@ export function RadiusEditor({
           </label>
           {device.radiusNas && (
             <>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={!!device.radiusNas.mab}
+                  onChange={(e) =>
+                    patch({ radiusNas: { ...device.radiusNas!, mab: e.target.checked } })
+                  }
+                />
+                MAB — uwierzytelnianie po MAC zamiast loginu i hasła
+              </label>
+              <p className="field-hint">
+                Na switchu włącz kontrolę dostępu dla portów access. Na AP MAB obejmuje klientów
+                Wi-Fi. Wymaga dostępnego RADIUS i zgodnej polityki MAC. MAC można podszyć; dla
+                administratorów preferuj 802.1X.
+              </p>
               <div className="scope-grid">
                 <label className="field">
                   <span>Serwer RADIUS</span>
@@ -303,11 +325,7 @@ export function RadiusEditor({
                     }
                   >
                     <option value="">Wybierz serwer</option>
-                    {servers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} · {s.ip || 'DHCP'}
-                      </option>
-                    ))}
+                    <DeviceOptions network={network} devices={servers} />
                   </select>
                 </label>
                 <label className="field">
@@ -384,7 +402,7 @@ export function RadiusEditor({
           {device.supplicant && (
             <div className="scope-grid">
               <label className="field">
-                <span>Login</span>
+                <span>Login / nazwa polityki</span>
                 <input
                   maxLength={80}
                   autoComplete="off"

@@ -1,3 +1,4 @@
+import { DeviceOptions } from '../components/DeviceOptions';
 import { CustomScenarios } from './CustomScenarios';
 import {
   ArrowClockwise,
@@ -184,11 +185,7 @@ export function TrafficPanel({
               }
             >
               <option value="">Wybierz urządzenie</option>
-              {devices.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
+              <DeviceOptions network={network} devices={devices} />
             </select>
           </label>
           {sourceDevice && supportsInterfaces(sourceDevice) && (
@@ -270,11 +267,7 @@ export function TrafficPanel({
                 }
               >
                 <option value="">Wybierz urządzenie</option>
-                {devices.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
+                <DeviceOptions network={network} devices={devices} />
               </select>
             ) : external ? (
               <select

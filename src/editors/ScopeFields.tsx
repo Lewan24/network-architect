@@ -1,3 +1,4 @@
+import { DeviceOptions } from '../components/DeviceOptions';
 import { SettingsSection } from '../components/SettingsSection';
 import { FieldHelp, fieldTips } from '../components/FieldHelp';
 import { DnsResolvers } from './DnsEditor';
@@ -52,11 +53,7 @@ export function ScopeFields({
             onChange={(e) => patch({ gatewayDeviceId: e.target.value })}
           >
             <option value="">Brak — tylko komunikacja lokalna L2</option>
-            {routers.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.name}
-              </option>
-            ))}
+            <DeviceOptions network={network} devices={routers} />
           </select>
         </label>
       </SettingsSection>
@@ -86,11 +83,7 @@ export function ScopeFields({
                   onChange={(e) => patch({ dhcpServerId: e.target.value })}
                 >
                   <option value="">Wybierz serwer DHCP</option>
-                  {servers.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
+                  <DeviceOptions network={network} devices={servers} />
                 </select>
               </label>
               <label className="field">
@@ -103,11 +96,7 @@ export function ScopeFields({
                   onChange={(e) => patch({ relayDeviceId: e.target.value })}
                 >
                   <option value="">Bez relay — serwer w tej samej sieci L2</option>
-                  {routers.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
+                  <DeviceOptions network={network} devices={routers} />
                 </select>
               </label>
             </div>

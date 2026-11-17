@@ -1,3 +1,4 @@
+import { ensureDeviceMacs } from '../model/mac';
 import { prepareHardware } from '../model/ports';
 import { useEffect, useState } from 'react';
 import { createDemoNetwork } from '../examples/demoNetwork';
@@ -24,7 +25,7 @@ function loadProject(): Network {
 /** Project data, undo/redo, automatic saves and lease refresh. UI state lives in App. */
 export function useProject(notify: (message: string) => void) {
   const [state, setState] = useState<ProjectHistory>(() => ({
-    network: loadProject(),
+    network: ensureDeviceMacs(loadProject()),
     past: [],
     future: [],
   }));
@@ -59,7 +60,7 @@ export function useProject(notify: (message: string) => void) {
   }, []);
 
   function commit(network: Network) {
-    const normalized = reconcileDhcp(prepareHardware(prepareInternet(network)));
+    const normalized = reconcileDhcp(prepareHardware(prepareInternet(ensureDeviceMacs(network))));
     setState((current) => recordProject(current, normalized));
   }
   function restore(direction: 'undo' | 'redo') {

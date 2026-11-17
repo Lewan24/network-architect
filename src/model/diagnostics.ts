@@ -1,3 +1,4 @@
+import { wirelessAssociation } from './wifi';
 import { discoverDhcp, layer2Path } from './dhcp';
 import {
   addressInPrefix,
@@ -53,6 +54,17 @@ export function diagnoseNetwork(network: Network): Diagnostic[] {
       });
   }
   for (const l of network.links) {
+    const association = wirelessAssociation(network, l);
+    if (association?.error)
+      add({
+        code: 'wifi-access-denied',
+        severity: 'error',
+        title: `${association.client.name}: brak dostępu do Wi-Fi`,
+        message: association.error,
+        remedy: 'Sprawdź hasło klienta, aktywne hasła PPSK wybranego SSID i przypisane VLAN-y.',
+        deviceId: association.client.id,
+        linkId: l.id,
+      });
     const state = hw.links.get(l.id)!;
     const pair = `${network.devices.find((d) => d.id === l.a)?.name || l.a} ↔ ${network.devices.find((d) => d.id === l.b)?.name || l.b}`;
     if (!state.up)
@@ -146,7 +158,11 @@ export function diagnoseNetwork(network: Network): Diagnostic[] {
           deviceId: d.id,
         });
     }
-    if (hasAcl(d) && d.defaultAcl !== 'allow' && !d.rules.some((r) => r.action === 'allow'))
+    if (
+      hasAcl(d) &&
+      (d.defaultAcl || (d.kind === 'vm' ? 'allow' : 'deny')) !== 'allow' &&
+      !d.rules.some((r) => r.action === 'allow')
+    )
       add({
         code: 'acl-deny',
         severity: 'info',

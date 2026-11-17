@@ -1,3 +1,4 @@
+import { AdvancedToggle } from './advancedMode';
 import { TextAnnotationDialog } from '../editors/TextAnnotationDialog';
 import type { CanvasText } from '../model/networkTypes';
 import { NetworkScanDialog } from '../simulation/NetworkScanDialog';
@@ -552,6 +553,7 @@ export function App() {
               <span className="mode-tag">{simulation ? 'Symulacja' : 'Projektowanie'}</span>
             </div>
             <div className="history-tools">
+              <AdvancedToggle />
               <button
                 disabled={!past.length}
                 title="Cofnij (Ctrl+Z)"
